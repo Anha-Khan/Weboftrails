@@ -1,5 +1,8 @@
 # Getting set up — read this first
 
+**On Windows?** Use `GETTING_STARTED_WINDOWS.md` instead — this guide is
+for Mac/Linux only, the steps are different on Windows.
+
 Hey! This is a quick guide to get the project running on your computer.
 Don't worry if you're new to this — just follow the steps in order.
 
