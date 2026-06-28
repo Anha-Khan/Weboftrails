@@ -1,0 +1,9 @@
+build/
+*.o
+*.out
+.DS_Store
+.vscode/*
+!.vscode/settings.json
+*.code-workspace
+*~
+*.swp
