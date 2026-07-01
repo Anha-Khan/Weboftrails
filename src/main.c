@@ -1,50 +1,40 @@
 #include "raylib.h"
 #include "config.h"
-#include "hero.h"
+#include "level1.h"
 
-// ============================================================
-// MAIN.C
-// This is the entry point. Its job is small on purpose:
-//   1. Open the window
-//   2. Create our game objects (right now, just the hero)
-//   3. Loop: read input -> update game state -> draw frame
-//   4. Clean up and close
-//
-// As we add web-swinging, enemies, and levels, each of those
-// gets its own .h/.c pair (like hero.h/hero.c), and main.c just
-// calls their Update/Draw functions here. Main.c itself should
-// stay short and readable.
-// ============================================================
-
-int main(void) {
+int main(void)
+{
     InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, GAME_TITLE);
     SetTargetFPS(TARGET_FPS);
 
-    Hero hero = HeroCreate((Vector2){ 100, GROUND_Y - HERO_HEIGHT });
+    Level1 level1 = Level1Create();
 
-    while (!WindowShouldClose()) {
-        float deltaTime = GetFrameTime();
+    while (!WindowShouldClose())
+    {
+        float dt = GetFrameTime();
 
-        // ---- UPDATE ----
-        HeroUpdate(&hero, deltaTime);
+        // R to restart after loss
+        if (level1.state == L1_LOSE && IsKeyPressed(KEY_R))
+        {
+            Level1Unload(&level1);
+            level1 = Level1Create();
+        }
 
-        // ---- DRAW ----
+        // ENTER after win (will go to Level 2 once built)
+        if (level1.state == L1_WIN && IsKeyPressed(KEY_ENTER))
+        {
+            Level1Unload(&level1);
+            level1 = Level1Create();
+        }
+
+        Level1Update(&level1, dt);
+
         BeginDrawing();
-            ClearBackground(SKYBLUE);
-
-            // Temporary ground line until we have real level art.
-            DrawRectangle(0, (int)GROUND_Y, SCREEN_WIDTH,
-                           SCREEN_HEIGHT - (int)GROUND_Y, DARKGREEN);
-
-            HeroDraw(&hero);
-
-            DrawText("A/D or Arrow Keys = move   |   SPACE/W = jump",
-                     20, 20, 20, DARKGRAY);
-            DrawFPS(SCREEN_WIDTH - 90, 10);
+        Level1Draw(&level1);
         EndDrawing();
     }
 
-    HeroUnload(&hero);
+    Level1Unload(&level1);
     CloseWindow();
     return 0;
 }
