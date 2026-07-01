@@ -1,21 +1,21 @@
-CC = gcc
-SRC = src/main.c src/hero.c
+CC  = gcc
+SRC = src/main.c src/hero.c src/coin.c src/obstacle.c src/level1.c
 
 ifeq ($(OS),Windows_NT)
-    OUT = build/webhero.exe
-    CFLAGS = -Wall -std=c99
+    OUT     = build/webhero.exe
+    CFLAGS  = -Wall -std=c99
     LDFLAGS = -lraylib -lopengl32 -lgdi32 -lwinmm
-    MKDIR = mkdir -p build
-    RUN = ./$(OUT)
-    CLEAN = rm -rf build
+    MKDIR   = mkdir -p build
+    RUN     = ./$(OUT)
+    CLEAN   = rm -rf build
 else
-    OUT = build/webhero
+    OUT     = build/webhero
     BREW_PREFIX := $(shell brew --prefix raylib 2>/dev/null)
-    CFLAGS = -Wall -std=c99 -I$(BREW_PREFIX)/include
+    CFLAGS  = -Wall -std=c99 -I$(BREW_PREFIX)/include
     LDFLAGS = -L$(BREW_PREFIX)/lib -lraylib -framework IOKit -framework Cocoa -framework OpenGL
-    MKDIR = mkdir -p build
-    RUN = ./$(OUT)
-    CLEAN = rm -rf build
+    MKDIR   = mkdir -p build
+    RUN     = ./$(OUT)
+    CLEAN   = rm -rf build
 endif
 
 all: $(OUT)
