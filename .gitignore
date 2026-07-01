@@ -7,3 +7,5 @@ build/
 *.code-workspace
 *~
 *.swp
+*.zip
+*.pdf
