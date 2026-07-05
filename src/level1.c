@@ -1,17 +1,47 @@
 #include "level1.h"
 #include "config.h"
 #include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
+#include <math.h>
+
+static void PlacePits(Level1 *lvl)
+{
+    float startX = 600.0f;
+    float endX = LEVEL1_LENGTH - 400.0f;
+    float zone = (endX - startX) / LEVEL1_PIT_COUNT;
+    for (int i = 0; i < LEVEL1_PIT_COUNT; i++)
+    {
+        float zoneStart = startX + i * zone;
+        float width = LEVEL1_PIT_MIN_W +
+                      (rand() % (int)(LEVEL1_PIT_MAX_W - LEVEL1_PIT_MIN_W));
+        float x = zoneStart + (rand() % (int)(zone * 0.6f));
+        lvl->pits[i].x = x;
+        lvl->pits[i].width = width;
+    }
+}
 
 static void PlaceCoins(Level1 *lvl)
 {
     float startX = 300.0f;
     float endX = LEVEL1_LENGTH - 200.0f;
     float spacing = (endX - startX) / LEVEL1_COIN_COUNT;
-
     for (int i = 0; i < LEVEL1_COIN_COUNT; i++)
     {
         float x = startX + i * spacing;
         float y = (i % 3 == 2) ? COIN_FLOAT_Y - 80.0f : COIN_FLOAT_Y;
+        bool inPit = false;
+        for (int p = 0; p < LEVEL1_PIT_COUNT; p++)
+        {
+            if (x >= lvl->pits[p].x &&
+                x <= lvl->pits[p].x + lvl->pits[p].width)
+            {
+                inPit = true;
+                break;
+            }
+        }
+        if (inPit)
+            x -= 60.0f;
         lvl->coins[i] = CoinCreate((Vector2){x, y}, lvl->coinTexture);
     }
 }
@@ -21,23 +51,39 @@ static void PlaceObstacles(Level1 *lvl)
     float startX = 500.0f;
     float endX = LEVEL1_LENGTH - 300.0f;
     float spacing = (endX - startX) / LEVEL1_OBS_COUNT;
-
     for (int i = 0; i < LEVEL1_OBS_COUNT; i++)
     {
         float x = startX + i * spacing;
         ObstacleType type = (i % 2 == 0) ? OBS_TALL : OBS_LOW;
-        lvl->obstacles[i] = ObstacleCreate((Vector2){x, 0}, type);
+        bool inPit = false;
+        for (int p = 0; p < LEVEL1_PIT_COUNT; p++)
+        {
+            if (x >= lvl->pits[p].x - 60 &&
+                x <= lvl->pits[p].x + lvl->pits[p].width + 60)
+            {
+                inPit = true;
+                break;
+            }
+        }
+        if (inPit)
+            x += 120.0f;
+        bool isMoving = (i % 3 == 0);
+        lvl->obstacles[i] = ObstacleCreate((Vector2){x, 0}, type, isMoving);
     }
 }
 
 Level1 Level1Create(void)
 {
+    srand((unsigned int)time(NULL));
     Level1 lvl = {0};
     lvl.timeLeft = LEVEL1_TIME;
     lvl.cameraX = 0.0f;
-    lvl.state = L1_PLAYING;
+    lvl.state = L1_COUNTDOWN;
+    lvl.countdownTimer = COUNTDOWN_DURATION;
     lvl.coinTexture = LoadTexture(COIN_TEXTURE);
+    lvl.bgFar = LoadTexture(BG_FAR_TEXTURE);
     lvl.hero = HeroCreate((Vector2){100.0f, GROUND_Y - HERO_HEIGHT});
+    PlacePits(&lvl);
     PlaceCoins(&lvl);
     PlaceObstacles(&lvl);
     return lvl;
@@ -48,14 +94,26 @@ void Level1Unload(Level1 *lvl)
     HeroUnload(&lvl->hero);
     if (lvl->coinTexture.id)
         UnloadTexture(lvl->coinTexture);
+    if (lvl->bgFar.id)
+        UnloadTexture(lvl->bgFar);
 }
 
 void Level1Update(Level1 *lvl, float dt)
 {
+    if (lvl->state == L1_COUNTDOWN)
+    {
+        lvl->countdownTimer -= dt;
+        if (lvl->countdownTimer <= 0.0f)
+        {
+            lvl->countdownTimer = 0.0f;
+            lvl->state = L1_PLAYING;
+        }
+        return;
+    }
+
     if (lvl->state != L1_PLAYING)
         return;
 
-    // Timer
     lvl->timeLeft -= dt;
     if (lvl->timeLeft <= 0.0f)
     {
@@ -64,10 +122,45 @@ void Level1Update(Level1 *lvl, float dt)
         return;
     }
 
-    // Hero
     HeroUpdate(&lvl->hero, dt, lvl->cameraX);
 
-    // Camera
+    // Pit check
+    float heroLeft = lvl->hero.position.x;
+    float heroRight = lvl->hero.position.x + lvl->hero.width;
+    bool overPit = false;
+    for (int i = 0; i < LEVEL1_PIT_COUNT; i++)
+    {
+        float pitLeft = lvl->pits[i].x;
+        float pitRight = lvl->pits[i].x + lvl->pits[i].width;
+        if (heroLeft >= pitLeft && heroRight <= pitRight)
+        {
+            overPit = true;
+            break;
+        }
+    }
+
+    if (overPit)
+    {
+        lvl->hero.isGrounded = false;
+        lvl->hero.velocity.y += GRAVITY * dt;
+        lvl->hero.position.y += lvl->hero.velocity.y * dt;
+        if (lvl->hero.position.y > SCREEN_HEIGHT + 100)
+        {
+            lvl->state = L1_LOSE;
+            return;
+        }
+    }
+    else
+    {
+        float heroFeet = lvl->hero.position.y + lvl->hero.height;
+        if (heroFeet >= GROUND_Y)
+        {
+            lvl->hero.position.y = GROUND_Y - lvl->hero.height;
+            lvl->hero.velocity.y = 0;
+            lvl->hero.isGrounded = true;
+        }
+    }
+
     float targetCamX = lvl->hero.position.x - SCREEN_WIDTH * 0.3f;
     if (targetCamX < 0)
         targetCamX = 0;
@@ -77,7 +170,28 @@ void Level1Update(Level1 *lvl, float dt)
 
     Rectangle heroRect = HeroGetRect(&lvl->hero);
 
-    // Coin collection
+    for (int i = 0; i < LEVEL1_OBS_COUNT; i++)
+        ObstacleUpdate(&lvl->obstacles[i], dt);
+
+    for (int i = 0; i < LEVEL1_OBS_COUNT; i++)
+    {
+        Rectangle obsRect = ObstacleGetRect(&lvl->obstacles[i]);
+        if (!CheckCollisionRecs(heroRect, obsRect))
+            continue;
+        if (lvl->obstacles[i].isMoving)
+        {
+            bool crushedFromAbove =
+                obsRect.y < lvl->hero.position.y + lvl->hero.height * 0.5f;
+            if (crushedFromAbove)
+            {
+                lvl->state = L1_LOSE;
+                return;
+            }
+        }
+        lvl->hero.position.x = obsRect.x - lvl->hero.width - 1.0f;
+        lvl->hero.velocity.x = 0.0f;
+    }
+
     for (int i = 0; i < LEVEL1_COIN_COUNT; i++)
     {
         if (lvl->coins[i].collected)
@@ -89,39 +203,67 @@ void Level1Update(Level1 *lvl, float dt)
         }
     }
 
-    // Obstacle collision
-    for (int i = 0; i < LEVEL1_OBS_COUNT; i++)
-    {
-        Rectangle obsRect = ObstacleGetRect(&lvl->obstacles[i]);
-        if (CheckCollisionRecs(heroRect, obsRect))
-        {
-            lvl->hero.position.x = obsRect.x - lvl->hero.width - 1.0f;
-            lvl->hero.velocity.x = 0.0f;
-        }
-    }
-
-    // Win check
     if (lvl->hero.position.x + lvl->hero.width >= LEVEL1_LENGTH)
-        lvl->state = (lvl->coinsCollected >= LEVEL1_MIN_COINS) ? L1_WIN : L1_LOSE;
+        lvl->state = (lvl->coinsCollected >= LEVEL1_MIN_COINS)
+                         ? L1_WIN
+                         : L1_LOSE;
 }
 
 void Level1Draw(const Level1 *lvl)
 {
     ClearBackground(SKYBLUE);
 
-    // Background strips
-    DrawRectangle(0, 200, SCREEN_WIDTH, 200, (Color){135, 180, 220, 255});
-    DrawRectangle(0, 400, SCREEN_WIDTH, 200, (Color){100, 160, 80, 255});
-    DrawRectangle(0, (int)GROUND_Y, SCREEN_WIDTH,
-                  SCREEN_HEIGHT - (int)GROUND_Y, DARKGREEN);
+    if (lvl->bgFar.id)
+    {
+        float scale = (float)SCREEN_HEIGHT / lvl->bgFar.height;
+        float bgW = lvl->bgFar.width * scale;
+        float bgX = fmodf(-(lvl->cameraX * 0.3f), bgW);
+        if (bgX > 0)
+            bgX -= bgW;
+        DrawTextureEx(lvl->bgFar, (Vector2){bgX, 0}, 0, scale, WHITE);
+        DrawTextureEx(lvl->bgFar, (Vector2){bgX + bgW, 0}, 0, scale, WHITE);
+        DrawTextureEx(lvl->bgFar, (Vector2){bgX + bgW * 2, 0}, 0, scale, WHITE);
+    }
+    else
+    {
+        DrawRectangle(0, 200, SCREEN_WIDTH, 200, (Color){135, 180, 220, 255});
+        DrawRectangle(0, 400, SCREEN_WIDTH, 200, (Color){100, 160, 80, 255});
+    }
 
-    // Coins and obstacles
+    // Ground with pits
+    float groundSegStart = 0;
+    for (int i = 0; i < LEVEL1_PIT_COUNT; i++)
+    {
+        float pitScreenX = lvl->pits[i].x - lvl->cameraX;
+        float segWidth = pitScreenX - groundSegStart;
+        if (segWidth > 0)
+            DrawRectangle((int)groundSegStart, (int)GROUND_Y,
+                          (int)segWidth,
+                          SCREEN_HEIGHT - (int)GROUND_Y, DARKGREEN);
+        groundSegStart = pitScreenX + lvl->pits[i].width;
+    }
+    float remaining = SCREEN_WIDTH - groundSegStart;
+    if (remaining > 0)
+        DrawRectangle((int)groundSegStart, (int)GROUND_Y,
+                      (int)remaining,
+                      SCREEN_HEIGHT - (int)GROUND_Y, DARKGREEN);
+
+    for (int i = 0; i < LEVEL1_PIT_COUNT; i++)
+    {
+        float sx = lvl->pits[i].x - lvl->cameraX;
+        if (sx + lvl->pits[i].width < 0 || sx > SCREEN_WIDTH)
+            continue;
+        DrawRectangle((int)sx, (int)GROUND_Y,
+                      (int)lvl->pits[i].width,
+                      SCREEN_HEIGHT - (int)GROUND_Y,
+                      (Color){20, 20, 20, 255});
+    }
+
     for (int i = 0; i < LEVEL1_COIN_COUNT; i++)
         CoinDraw(&lvl->coins[i], lvl->cameraX);
     for (int i = 0; i < LEVEL1_OBS_COUNT; i++)
         ObstacleDraw(&lvl->obstacles[i], lvl->cameraX);
 
-    // End marker
     float endX = LEVEL1_LENGTH - lvl->cameraX;
     if (endX >= 0 && endX <= SCREEN_WIDTH)
     {
@@ -129,10 +271,8 @@ void Level1Draw(const Level1 *lvl)
         DrawText("END", (int)endX - 10, (int)GROUND_Y - 145, 20, GOLD);
     }
 
-    // Hero
     HeroDraw(&lvl->hero, lvl->cameraX);
 
-    // HUD
     char timerText[32];
     sprintf(timerText, "TIME: %d", (int)lvl->timeLeft);
     Color timerColor = (lvl->timeLeft <= 10.0f) ? RED : WHITE;
@@ -147,27 +287,51 @@ void Level1Draw(const Level1 *lvl)
              20, SCREEN_HEIGHT - 30, 18, LIGHTGRAY);
     DrawFPS(SCREEN_WIDTH - 90, 10);
 
-    // Win overlay
+    if (lvl->state == L1_COUNTDOWN)
+    {
+        DrawRectangle(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, (Color){0, 0, 0, 120});
+        int count = (int)lvl->countdownTimer + 1;
+        char countText[4];
+        sprintf(countText, "%d", count);
+        DrawText(countText,
+                 SCREEN_WIDTH / 2 - MeasureText(countText, 120) / 2,
+                 SCREEN_HEIGHT / 2 - 80, 120, WHITE);
+        DrawText("GET READY!",
+                 SCREEN_WIDTH / 2 - MeasureText("GET READY!", 36) / 2,
+                 SCREEN_HEIGHT / 2 + 60, 36, YELLOW);
+    }
+
     if (lvl->state == L1_WIN)
     {
         DrawRectangle(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, (Color){0, 0, 0, 160});
-        DrawText("LEVEL COMPLETE!", SCREEN_WIDTH / 2 - 180, SCREEN_HEIGHT / 2 - 60, 52, GREEN);
+        DrawText("LEVEL COMPLETE!",
+                 SCREEN_WIDTH / 2 - MeasureText("LEVEL COMPLETE!", 52) / 2,
+                 SCREEN_HEIGHT / 2 - 60, 52, GREEN);
         char txt[64];
         sprintf(txt, "Coins collected: %d", lvl->coinsCollected);
-        DrawText(txt, SCREEN_WIDTH / 2 - 120, SCREEN_HEIGHT / 2 + 10, 28, WHITE);
-        DrawText("Press ENTER to continue", SCREEN_WIDTH / 2 - 160,
+        DrawText(txt, SCREEN_WIDTH / 2 - MeasureText(txt, 28) / 2,
+                 SCREEN_HEIGHT / 2 + 10, 28, WHITE);
+        DrawText("Press ENTER to continue",
+                 SCREEN_WIDTH / 2 - MeasureText("Press ENTER to continue", 26) / 2,
                  SCREEN_HEIGHT / 2 + 60, 26, YELLOW);
     }
 
-    // Lose overlay
     if (lvl->state == L1_LOSE)
     {
         DrawRectangle(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, (Color){0, 0, 0, 160});
-        DrawText("TIME'S UP!", SCREEN_WIDTH / 2 - 130, SCREEN_HEIGHT / 2 - 60, 52, RED);
+        const char *reason = (lvl->hero.position.y > SCREEN_HEIGHT)
+                                 ? "YOU FELL!"
+                                 : "GAME OVER!";
+        DrawText(reason,
+                 SCREEN_WIDTH / 2 - MeasureText(reason, 52) / 2,
+                 SCREEN_HEIGHT / 2 - 60, 52, RED);
         char txt[64];
-        sprintf(txt, "Coins: %d  (need %d)", lvl->coinsCollected, LEVEL1_MIN_COINS);
-        DrawText(txt, SCREEN_WIDTH / 2 - 130, SCREEN_HEIGHT / 2 + 10, 28, WHITE);
-        DrawText("Press R to try again", SCREEN_WIDTH / 2 - 130,
+        sprintf(txt, "Coins: %d  (need %d)",
+                lvl->coinsCollected, LEVEL1_MIN_COINS);
+        DrawText(txt, SCREEN_WIDTH / 2 - MeasureText(txt, 28) / 2,
+                 SCREEN_HEIGHT / 2 + 10, 28, WHITE);
+        DrawText("Press R to try again",
+                 SCREEN_WIDTH / 2 - MeasureText("Press R to try again", 26) / 2,
                  SCREEN_HEIGHT / 2 + 60, 26, YELLOW);
     }
 }
