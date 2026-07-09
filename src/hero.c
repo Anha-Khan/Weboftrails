@@ -144,3 +144,94 @@ void HeroDraw(const Hero *h, float camX)
         DrawRectangle((int)sx, (int)sy, h->width, h->height, c);
     }
 }
+
+// ---- Combat (Level 2) ----
+
+void HeroCombatReset(Hero *h)
+{
+    h->hp = HERO_MAX_HP;
+    h->maxHp = HERO_MAX_HP;
+    h->isAttacking = false;
+    h->hasHitThisSwing = false;
+    h->attackTimer = 0.0f;
+    h->attackCooldownTimer = 0.0f;
+    h->isBlocking = false;
+    h->isDodging = false;
+    h->dodgeTimer = 0.0f;
+    h->dodgeCooldownTimer = 0.0f;
+    h->invulnTimer = 0.0f;
+}
+
+void HeroCombatUpdate(Hero *h, float dt)
+{
+    if (h->attackCooldownTimer > 0.0f)
+        h->attackCooldownTimer -= dt;
+    if (h->dodgeCooldownTimer > 0.0f)
+        h->dodgeCooldownTimer -= dt;
+    if (h->invulnTimer > 0.0f)
+        h->invulnTimer -= dt;
+
+    // Attack: tap to swing, short active window, can't spam
+    if (h->isAttacking)
+    {
+        h->attackTimer -= dt;
+        if (h->attackTimer <= 0.0f)
+            h->isAttacking = false;
+    }
+    else if (IsKeyPressed(KEY_ATTACK) && h->attackCooldownTimer <= 0.0f && !h->isDodging)
+    {
+        h->isAttacking = true;
+        h->hasHitThisSwing = false;
+        h->attackTimer = HERO_ATTACK_DURATION;
+        h->attackCooldownTimer = HERO_ATTACK_COOLDOWN;
+    }
+
+    // Block: hold to reduce incoming damage, can't attack/dodge while blocking
+    h->isBlocking = IsKeyDown(KEY_BLOCK) && !h->isAttacking && !h->isDodging;
+
+    // Dodge: tap for a quick dash with i-frames in the direction you're facing
+    if (h->isDodging)
+    {
+        h->dodgeTimer -= dt;
+        float dir = h->facingRight ? 1.0f : -1.0f;
+        h->position.x += dir * HERO_DODGE_SPEED * dt;
+        if (h->dodgeTimer <= 0.0f)
+            h->isDodging = false;
+    }
+    else if (IsKeyPressed(KEY_DODGE) && h->dodgeCooldownTimer <= 0.0f && !h->isAttacking)
+    {
+        h->isDodging = true;
+        h->dodgeTimer = HERO_DODGE_DURATION;
+        h->dodgeCooldownTimer = HERO_DODGE_COOLDOWN;
+        h->invulnTimer = HERO_DODGE_DURATION;
+    }
+}
+
+Rectangle HeroGetAttackRect(const Hero *h)
+{
+    float x = h->facingRight ? (h->position.x + h->width) : (h->position.x - HERO_ATTACK_RANGE);
+    return (Rectangle){x, h->position.y, HERO_ATTACK_RANGE, (float)h->height};
+}
+
+void HeroTakeDamage(Hero *h, int amount)
+{
+    if (h->invulnTimer > 0.0f)
+        return; // mid-dodge, safe
+
+    int actual = amount;
+    if (h->isBlocking)
+    {
+        actual = (int)(amount * (1.0f - HERO_BLOCK_DAMAGE_REDUCTION));
+        if (actual < 1 && amount > 0)
+            actual = 1; // chip damage still gets through a block
+    }
+    h->hp -= actual;
+    if (h->hp < 0)
+        h->hp = 0;
+    h->invulnTimer = HERO_HIT_IFRAMES; // brief safety window after getting hit
+}
+
+bool HeroIsInvulnerable(const Hero *h)
+{
+    return h->invulnTimer > 0.0f;
+}

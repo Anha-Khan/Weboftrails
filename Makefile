@@ -1,5 +1,5 @@
 CC  = gcc
-SRC = src/main.c src/hero.c src/coin.c src/obstacle.c src/debris.c src/level1.c
+SRC = src/main.c src/hero.c src/coin.c src/obstacle.c src/debris.c src/enemy.c src/level1.c src/level2.c
 
 ifeq ($(OS),Windows_NT)
     OUT     = build/webhero.exe
