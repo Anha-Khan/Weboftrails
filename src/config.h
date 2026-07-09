@@ -58,4 +58,55 @@
 #define DEBRIS_WARNING_DURATION 1.0f
 #define DEBRIS_LANDED_DURATION 0.9f
 
+// ---- Level 2: combat ----
+// Controls: J = attack, K = block (hold), L = dodge (tap, brief i-frames)
+#define KEY_ATTACK KEY_J
+#define KEY_BLOCK KEY_K
+#define KEY_DODGE KEY_L
+
+#define LEVEL2_LENGTH 4200.0f
+#define LEVEL2_TIME 180.0f
+
+#define HERO_MAX_HP 100
+#define HERO_ATTACK_DAMAGE 14
+#define HERO_ATTACK_RANGE 60.0f
+#define HERO_ATTACK_DURATION 0.18f
+#define HERO_ATTACK_COOLDOWN 0.30f
+#define HERO_BLOCK_DAMAGE_REDUCTION 0.75f // fraction of damage blocked while holding K
+#define HERO_DODGE_DURATION 0.22f
+#define HERO_DODGE_SPEED 620.0f
+#define HERO_DODGE_COOLDOWN 0.55f
+#define HERO_HIT_IFRAMES 0.4f // brief invulnerability after getting hit
+
+#define ENEMY_WIDTH 54
+#define ENEMY_HEIGHT 90
+#define ENEMY_HITSTUN_DURATION 0.25f
+#define ENEMY_ATTACK_ACTIVE_DURATION 0.15f
+
+#define ENEMY_EASY_HP 40
+#define ENEMY_EASY_DAMAGE 6
+#define ENEMY_EASY_SPEED 110.0f
+#define ENEMY_EASY_RANGE 55.0f
+#define ENEMY_EASY_TELEGRAPH 0.65f
+#define ENEMY_EASY_COOLDOWN 1.5f
+
+#define ENEMY_MEDIUM_HP 65
+#define ENEMY_MEDIUM_DAMAGE 10
+#define ENEMY_MEDIUM_SPEED 155.0f
+#define ENEMY_MEDIUM_RANGE 60.0f
+#define ENEMY_MEDIUM_TELEGRAPH 0.45f
+#define ENEMY_MEDIUM_COOLDOWN 1.1f
+
+#define ENEMY_HARD_HP 95
+#define ENEMY_HARD_DAMAGE 16
+#define ENEMY_HARD_SPEED 195.0f
+#define ENEMY_HARD_RANGE 65.0f
+#define ENEMY_HARD_TELEGRAPH 0.30f
+#define ENEMY_HARD_COOLDOWN 0.8f
+
+// Fight arenas: hero can't run past an active enemy until it's defeated.
+#define ARENA_WIDTH 700.0f
+#define ARENA_ENEMY_OFFSET 380.0f
+#define ARENA_CAMERA_LEAD 150.0f
+
 #endif

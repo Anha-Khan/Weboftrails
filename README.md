@@ -1,9 +1,10 @@
-# Web Hero
+# Web Hero (Web of Trails)
 
-A 2.5D side-scrolling action game built in C with raylib.
-Working title — rename freely.
+A 2.5D side-scrolling action game built in C with raylib. Working title —
+rename freely. Three people are building this together (Anha, Nazifa,
+Chand) — see `CONTRIBUTING.md` before you start editing.
 
-## Project Structure
+## Project structure
 
 ```
 webhero/
@@ -11,82 +12,134 @@ webhero/
 ├── src/
 │   ├── main.c            <- entry point / game loop
 │   ├── config.h          <- ALL settings + asset filenames (edit this freely)
-│   ├── hero.h / hero.c   <- player character logic
+│   ├── hero.h / hero.c   <- player character: movement, jump, duck, run animation
+│   ├── obstacle.h/.c    <- JUMP/DUCK obstacles (some move up and down)
+│   ├── debris.h / .c     <- falling-object hazard: warns, drops, has to be dodged
+│   ├── coin.h / .c       <- collectible coins
+│   └── level1.h / .c     <- level 1: layout, camera, win/lose, HUD
 ├── assets/
 │   ├── hero/             <- hero sprite images go here
-│   ├── enemies/          <- enemy sprite images go here
+│   ├── enemies/          <- enemy sprite images go here (not used yet)
 │   ├── backgrounds/      <- parallax background layers go here
-│   └── levels/           <- level data (added in a later stage)
+│   └── levels/           <- level data / level-specific art (e.g. coin sprite)
 └── build/                <- compiled game ends up here (auto-created)
 ```
 
-## How to swap the hero's look later
+## Controls
 
-Open `src/config.h`. Near the top you'll see:
+- `A` / Left Arrow — move left
+- `D` / Right Arrow — move right
+- `SPACE` or `W` — jump
+- `S` / Down Arrow — duck
+- `R` — restart after losing
+- `ENTER` — continue after winning
 
-```c
-#define HERO_IDLE_TEXTURE   "assets/hero/hero_idle.png"
-#define HERO_RUN_TEXTURE    "assets/hero/hero_run.png"
-#define HERO_JUMP_TEXTURE   "assets/hero/hero_jump.png"
-```
+## What's in Level 1
 
-To use your own art: just save your PNG files into `assets/hero/` using
-those exact filenames (or change the filenames in config.h to match
-whatever you name your files). No other code needs to change.
+Run from the start to the "END" flag before the clock runs out, while
+collecting at least `LEVEL1_MIN_COINS` coins along the way. Three kinds of
+hazards are mixed along the path:
 
-If a file is missing, the game doesn't crash — it just draws a colored
-rectangle instead, so you can keep playing/testing before art exists.
+- **JUMP obstacles** (tall, brown) — jump over them. Some bob up and down
+  (outlined in orange) instead of sitting still, so the timing changes.
+- **DUCK obstacles** (low, purple) — duck under them. Same deal, some move.
+- **Pits** — gaps in the ground with no floor. Fall in and it's game over,
+  so jump across before you reach the edge.
+- **Falling debris** — a red warning marker flashes on the ground to show
+  where something is about to drop from above. You have a moment to move
+  out of that spot sideways before it lands; get hit while it's falling
+  and it's game over.
 
-## Building and running (macOS)
+Bumping into a JUMP/DUCK obstacle just blocks your path (like a wall) —
+it doesn't end the level, so you can back up and re-time your jump/duck.
+The only instant-fail hazards are pits and falling debris.
 
-You said you've installed raylib before, so first double check it's
-actually there:
+Coins are worth grabbing but not required for every one — just hit the
+minimum shown in the top-left HUD before reaching the end.
 
-```bash
-brew list raylib
-```
+## Building and running
 
-If that says "Error: No such keg" or similar, install it with:
-
-```bash
-brew install raylib
-```
-
-Then, from inside the `webhero` folder:
+**Mac/Linux:** see `GETTING_STARTED.md`. Short version, once raylib is
+installed (`brew install raylib`):
 
 ```bash
 make run
 ```
 
-This compiles the game and launches it in one step. If you just want
-to compile without running:
+**Windows (Visual Studio):** see `GETTING_STARTED_WINDOWS.md`.
+
+Other useful commands:
 
 ```bash
-make
-./build/webhero
+make        # compile only
+make clean  # delete compiled files and start fresh
 ```
 
-To delete compiled files and start fresh:
+## Swapping the hero's look (or any asset)
 
-```bash
-make clean
+Open `src/config.h` — near the top you'll see filenames like:
+
+```c
+#define HERO_IDLE_TEXTURE   "assets/hero/hero_idle.png"
+#define HERO_RUN_TEXTURE_1  "assets/hero/hero_run1.png"
+#define HERO_RUN_TEXTURE_2  "assets/hero/hero_run2.png"
+#define HERO_RUN_TEXTURE_3  "assets/hero/hero_run3.png"
+#define HERO_JUMP_TEXTURE   "assets/hero/hero_jump.png"
+#define HERO_DUCK_TEXTURE   "assets/hero/hero_duck.png"
 ```
 
-## Controls (Stage 1)
+Save your own PNGs into `assets/hero/` using those exact filenames (or
+change the filenames in `config.h` to match whatever you name your
+files). No other code needs to change. If a file is missing, the game
+doesn't crash — it draws a colored placeholder shape instead, so you can
+keep playing/testing before the art exists.
 
-- `A` / Left Arrow — move left
-- `D` / Right Arrow — move right
-- `SPACE` or `W` — jump
+## What's in Level 2
 
-(Web-swinging, mouse-click combat, and level goals come in later stages.)
+After clearing Level 1 you get a short "Level 2 unlocked" screen, then
+drop into a combat stage: run along a path and fight three enemies in a
+row (easy, then medium, then hard). Each fight locks the camera in place
+until that enemy is down, then you keep running to the next one.
 
-## What's implemented so far
+Combat controls:
+- `J` — attack (short swing in front of you, has a brief cooldown)
+- `K` — hold to block (cuts incoming damage, can't attack/dodge at the
+  same time)
+- `L` — dodge (a quick dash in the direction you're facing, with a
+  short window of invulnerability — this is the escape option when an
+  enemy's attack is telegraphed)
 
-- [x] Window + game loop
-- [x] Hero movement (left/right, jump, gravity)
-- [x] Swappable asset system with placeholder fallback
+Enemies wind up (flash red) before swinging — that flash is your cue to
+dodge, block, or just back out of range. Your HP bar is above your head;
+run out and it's game over (`R` to retry). Beat all three and you get a
+"Level 2 complete" screen (Level 3 isn't built yet).
+
+## Status
+
+**Level 1**
+- [x] Running, jumping, ducking, gravity
+- [x] Camera that scrolls with the hero
+- [x] JUMP/DUCK obstacles, including ones that move
+- [x] Pits you can fall into
+- [x] Falling debris hazard (telegraphed, dodge sideways)
+- [x] Coins, timer, win/lose states, restart
+- [x] Run-cycle animation
+- [ ] `hero_jump.png` / `hero_duck.png` art (currently placeholder boxes)
+- [ ] `assets/levels/coin.png` art (currently a placeholder gold circle)
+
+**Level 1 -> Level 2 transition**
+- [x] Congratulations/unlock screen after winning Level 1
+
+**Level 2**
+- [x] HP bar above the hero's head
+- [x] Attack / block / dodge combat
+- [x] Three enemies (easy/medium/hard) fought one at a time, in sequence
+- [x] Per-enemy HP bar + telegraphed attacks
+- [x] Win/lose states, restart
+- [ ] Enemy sprite art (currently colored placeholder boxes)
 - [ ] Web-swinging mechanic
-- [ ] Combat (mouse-click based)
-- [ ] Parallax backgrounds
-- [ ] Level 1 / 2 / 3 layouts + win condition
-- [ ] Enemies
+- [ ] Level 3
+
+See `CONTRIBUTING.md` for how we merge work between branches, and open a
+pull request into `main` once a feature is working — nobody edits `main`
+directly.
