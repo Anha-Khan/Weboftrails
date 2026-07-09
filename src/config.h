@@ -7,11 +7,15 @@
 #define TARGET_FPS 60
 
 #define HERO_IDLE_TEXTURE "assets/hero/hero_idle.png"
-#define HERO_RUN_TEXTURE "assets/hero/hero_run.png"
+#define HERO_RUN_TEXTURE_1 "assets/hero/hero_run1.png"
+#define HERO_RUN_TEXTURE_2 "assets/hero/hero_run2.png"
+#define HERO_RUN_TEXTURE_3 "assets/hero/hero_run3.png"
 #define HERO_JUMP_TEXTURE "assets/hero/hero_jump.png"
 #define HERO_DUCK_TEXTURE "assets/hero/hero_duck.png"
 #define COIN_TEXTURE "assets/levels/coin.png"
 #define BG_FAR_TEXTURE "assets/backgrounds/bg_far.png"
+
+#define RUN_FRAME_DURATION 0.09f
 
 #define GRAVITY 1800.0f
 #define MOVE_SPEED 420.0f
@@ -43,5 +47,15 @@
 #define OBS_MOVE_RANGE 200.0f
 
 #define COUNTDOWN_DURATION 3.0f
+
+// Falling debris: hazards that drop from above and must be dodged
+// sideways (unlike OBS_TALL/OBS_LOW, which are timed jump/duck checks).
+#define LEVEL1_DEBRIS_COUNT 8
+#define DEBRIS_WIDTH 46
+#define DEBRIS_HEIGHT 46
+#define DEBRIS_START_Y -150.0f
+#define DEBRIS_FALL_SPEED 950.0f
+#define DEBRIS_WARNING_DURATION 1.0f
+#define DEBRIS_LANDED_DURATION 0.9f
 
 #endif
