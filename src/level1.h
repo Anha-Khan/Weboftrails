@@ -6,6 +6,7 @@
 #include "hero.h"
 #include "coin.h"
 #include "obstacle.h"
+#include "debris.h"
 #include <stdbool.h>
 
 typedef struct Pit
@@ -32,6 +33,7 @@ typedef struct Level1
     float countdownTimer;
     Coin coins[LEVEL1_COIN_COUNT];
     Obstacle obstacles[LEVEL1_OBS_COUNT];
+    FallingDebris debris[LEVEL1_DEBRIS_COUNT];
     Pit pits[LEVEL1_PIT_COUNT];
     Texture2D coinTexture;
     Texture2D bgFar;

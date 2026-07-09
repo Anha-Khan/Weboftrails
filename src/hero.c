@@ -11,7 +11,10 @@ Hero HeroCreate(Vector2 pos)
     h.height = HERO_HEIGHT;
     h.facingRight = true;
     h.idleTexture = LoadSafe(HERO_IDLE_TEXTURE);
-    h.runTexture = LoadSafe(HERO_RUN_TEXTURE);
+    h.runTextures[0] = LoadSafe(HERO_RUN_TEXTURE_1);
+    h.runTextures[1] = LoadSafe(HERO_RUN_TEXTURE_2);
+    h.runTextures[2] = LoadSafe(HERO_RUN_TEXTURE_3);
+    h.runFrameCount = 3;
     h.jumpTexture = LoadSafe(HERO_JUMP_TEXTURE);
     h.duckTexture = LoadSafe(HERO_DUCK_TEXTURE);
     return h;
@@ -21,8 +24,9 @@ void HeroUnload(Hero *h)
 {
     if (h->idleTexture.id)
         UnloadTexture(h->idleTexture);
-    if (h->runTexture.id)
-        UnloadTexture(h->runTexture);
+    for (int i = 0; i < h->runFrameCount; i++)
+        if (h->runTextures[i].id)
+            UnloadTexture(h->runTextures[i]);
     if (h->jumpTexture.id)
         UnloadTexture(h->jumpTexture);
     if (h->duckTexture.id)
@@ -70,6 +74,22 @@ void HeroUpdate(Hero *h, float dt, float camX)
         h->isGrounded = false;
     }
 
+    // Run animation frame cycling (only while actually running on the ground)
+    if (h->isGrounded && !h->isDucking && h->velocity.x != 0 && h->runFrameCount > 0)
+    {
+        h->runFrameTimer += dt;
+        if (h->runFrameTimer >= RUN_FRAME_DURATION)
+        {
+            h->runFrameTimer = 0.0f;
+            h->runFrameIndex = (h->runFrameIndex + 1) % h->runFrameCount;
+        }
+    }
+    else
+    {
+        h->runFrameTimer = 0.0f;
+        h->runFrameIndex = 0;
+    }
+
     // Gravity
     h->velocity.y += GRAVITY * dt;
 
@@ -77,13 +97,11 @@ void HeroUpdate(Hero *h, float dt, float camX)
     h->position.x += h->velocity.x * dt;
     h->position.y += h->velocity.y * dt;
 
-    // Ground
-    if (h->position.y + h->height >= GROUND_Y)
-    {
-        h->position.y = GROUND_Y - h->height;
-        h->velocity.y = 0;
-        h->isGrounded = true;
-    }
+    // NOTE: ground/pit collision is resolved by Level1Update, not here.
+    // Hero only knows about gravity and movement; the level knows about
+    // terrain (ground vs. pits), so that's the single source of truth
+    // for isGrounded/snapping. Doing it here too caused gravity to be
+    // applied twice per frame while the hero was over a pit.
 
     // Boundaries
     if (h->position.x < camX)
@@ -108,8 +126,8 @@ void HeroDraw(const Hero *h, float camX)
         t = h->duckTexture;
     else if (!h->isGrounded)
         t = h->jumpTexture;
-    else if (h->velocity.x)
-        t = h->runTexture;
+    else if (h->velocity.x && h->runFrameCount > 0)
+        t = h->runTextures[h->runFrameIndex];
 
     if (t.id)
     {

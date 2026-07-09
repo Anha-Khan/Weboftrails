@@ -5,6 +5,15 @@
 #include <time.h>
 #include <math.h>
 
+// True if a hazard of [x, x+width] would land within `margin` pixels of
+// another hazard occupying [otherX, otherX+otherWidth]. Used to keep
+// pits/obstacles/debris from stacking on top of each other so there's
+// always room to react to one hazard before the next one shows up.
+static bool RangeTooClose(float x, float width, float otherX, float otherWidth, float margin)
+{
+    return (x - margin) < (otherX + otherWidth) && (x + width + margin) > otherX;
+}
+
 static void PlacePits(Level1 *lvl)
 {
     float startX = 600.0f;
@@ -51,24 +60,78 @@ static void PlaceObstacles(Level1 *lvl)
     float startX = 500.0f;
     float endX = LEVEL1_LENGTH - 300.0f;
     float spacing = (endX - startX) / LEVEL1_OBS_COUNT;
+    float margin = 150.0f; // room to land/recover before the next hazard
+
     for (int i = 0; i < LEVEL1_OBS_COUNT; i++)
     {
-        float x = startX + i * spacing;
+        float zoneStart = startX + i * spacing;
+        float x = zoneStart;
         ObstacleType type = (i % 2 == 0) ? OBS_TALL : OBS_LOW;
-        bool inPit = false;
-        for (int p = 0; p < LEVEL1_PIT_COUNT; p++)
+        float width = (type == OBS_TALL) ? OBS_TALL_WIDTH : OBS_LOW_WIDTH;
+
+        int attempts = 0;
+        while (attempts < 20)
         {
-            if (x >= lvl->pits[p].x - 60 &&
-                x <= lvl->pits[p].x + lvl->pits[p].width + 60)
+            bool conflict = false;
+            for (int p = 0; p < LEVEL1_PIT_COUNT; p++)
             {
-                inPit = true;
-                break;
+                if (RangeTooClose(x, width, lvl->pits[p].x, lvl->pits[p].width, margin))
+                {
+                    conflict = true;
+                    break;
+                }
             }
+            if (!conflict)
+                break;
+            x += 50.0f;
+            attempts++;
         }
-        if (inPit)
-            x += 120.0f;
+
+        float zoneEnd = zoneStart + spacing;
+        if (x + width > zoneEnd)
+            x = zoneEnd - width - 10.0f;
+
         bool isMoving = (i % 3 == 0);
         lvl->obstacles[i] = ObstacleCreate((Vector2){x, 0}, type, isMoving);
+    }
+}
+
+static void PlaceDebris(Level1 *lvl)
+{
+    float startX = 700.0f;
+    float endX = LEVEL1_LENGTH - 400.0f;
+    float spacing = (endX - startX) / LEVEL1_DEBRIS_COUNT;
+    float margin = 200.0f; // room to dodge sideways before/after any other hazard
+
+    for (int i = 0; i < LEVEL1_DEBRIS_COUNT; i++)
+    {
+        float zoneStart = startX + i * spacing;
+        float x = zoneStart + (rand() % (int)(spacing * 0.3f));
+
+        int attempts = 0;
+        while (attempts < 20)
+        {
+            bool conflict = false;
+            for (int p = 0; p < LEVEL1_PIT_COUNT && !conflict; p++)
+                if (RangeTooClose(x, DEBRIS_WIDTH, lvl->pits[p].x, lvl->pits[p].width, margin))
+                    conflict = true;
+            for (int o = 0; o < LEVEL1_OBS_COUNT && !conflict; o++)
+                if (RangeTooClose(x, DEBRIS_WIDTH, lvl->obstacles[o].position.x,
+                                  (float)lvl->obstacles[o].width, margin))
+                    conflict = true;
+            if (!conflict)
+                break;
+            x += 50.0f;
+            attempts++;
+        }
+
+        float zoneEnd = zoneStart + spacing;
+        if (x + DEBRIS_WIDTH > zoneEnd)
+            x = zoneEnd - DEBRIS_WIDTH - 10.0f;
+
+        // Stagger each one's warning timer so they don't all drop together.
+        float offset = (float)(rand() % 1000) / 1000.0f * DEBRIS_WARNING_DURATION;
+        lvl->debris[i] = DebrisCreate(x, offset);
     }
 }
 
@@ -86,6 +149,7 @@ Level1 Level1Create(void)
     PlacePits(&lvl);
     PlaceCoins(&lvl);
     PlaceObstacles(&lvl);
+    PlaceDebris(&lvl);
     return lvl;
 }
 
@@ -124,7 +188,10 @@ void Level1Update(Level1 *lvl, float dt)
 
     HeroUpdate(&lvl->hero, dt, lvl->cameraX);
 
-    // Pit check
+    // Pit check: any horizontal overlap between the hero and a pit means
+    // there's no ground under them there (previously this required the
+    // hero to be *entirely* inside the pit, so they'd visibly float over
+    // most of the gap before suddenly dropping once fully swallowed by it).
     float heroLeft = lvl->hero.position.x;
     float heroRight = lvl->hero.position.x + lvl->hero.width;
     bool overPit = false;
@@ -132,18 +199,20 @@ void Level1Update(Level1 *lvl, float dt)
     {
         float pitLeft = lvl->pits[i].x;
         float pitRight = lvl->pits[i].x + lvl->pits[i].width;
-        if (heroLeft >= pitLeft && heroRight <= pitRight)
+        if (heroRight > pitLeft && heroLeft < pitRight)
         {
             overPit = true;
             break;
         }
     }
 
+    // Gravity + vertical movement already happened once inside HeroUpdate.
+    // We only decide here whether the hero is standing on solid ground or
+    // falling through a pit - we must NOT integrate gravity/position again,
+    // that was applying gravity twice per frame while over a pit.
     if (overPit)
     {
         lvl->hero.isGrounded = false;
-        lvl->hero.velocity.y += GRAVITY * dt;
-        lvl->hero.position.y += lvl->hero.velocity.y * dt;
         if (lvl->hero.position.y > SCREEN_HEIGHT + 100)
         {
             lvl->state = L1_LOSE;
@@ -178,16 +247,13 @@ void Level1Update(Level1 *lvl, float dt)
         Rectangle obsRect = ObstacleGetRect(&lvl->obstacles[i]);
         if (!CheckCollisionRecs(heroRect, obsRect))
             continue;
-        if (lvl->obstacles[i].isMoving)
-        {
-            bool crushedFromAbove =
-                obsRect.y < lvl->hero.position.y + lvl->hero.height * 0.5f;
-            if (crushedFromAbove)
-            {
-                lvl->state = L1_LOSE;
-                return;
-            }
-        }
+        // Obstacles (moving or static) just block your path - they don't
+        // instantly end the level. The only instant-death hazards are
+        // falling into a pit and getting hit by falling debris. Moving
+        // obstacles used to insta-kill on "crushedFromAbove", but since
+        // they bob up into the air on their own, that could trigger mid-
+        // jump (e.g. right after clearing a pit) in a way that looked and
+        // felt like landing on open ground - confusing and unfair.
         lvl->hero.position.x = obsRect.x - lvl->hero.width - 1.0f;
         lvl->hero.velocity.x = 0.0f;
     }
@@ -200,6 +266,20 @@ void Level1Update(Level1 *lvl, float dt)
         {
             lvl->coins[i].collected = true;
             lvl->coinsCollected++;
+        }
+    }
+
+    for (int i = 0; i < LEVEL1_DEBRIS_COUNT; i++)
+        DebrisUpdate(&lvl->debris[i], dt);
+
+    for (int i = 0; i < LEVEL1_DEBRIS_COUNT; i++)
+    {
+        if (!DebrisIsDeadly(&lvl->debris[i]))
+            continue;
+        if (CheckCollisionRecs(heroRect, DebrisGetRect(&lvl->debris[i])))
+        {
+            lvl->state = L1_LOSE;
+            return;
         }
     }
 
@@ -263,6 +343,8 @@ void Level1Draw(const Level1 *lvl)
         CoinDraw(&lvl->coins[i], lvl->cameraX);
     for (int i = 0; i < LEVEL1_OBS_COUNT; i++)
         ObstacleDraw(&lvl->obstacles[i], lvl->cameraX);
+    for (int i = 0; i < LEVEL1_DEBRIS_COUNT; i++)
+        DebrisDraw(&lvl->debris[i], lvl->cameraX);
 
     float endX = LEVEL1_LENGTH - lvl->cameraX;
     if (endX >= 0 && endX <= SCREEN_WIDTH)
