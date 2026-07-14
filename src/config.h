@@ -26,24 +26,6 @@
 #define HERO_HEIGHT 80
 #define HERO_DUCK_HEIGHT 40
 
-<<<<<<< HEAD
-// ---- Hero size (used until we load real sprite dimensions) ----
-#define HERO_WIDTH         50
-#define HERO_HEIGHT        80
-// ---- Combat tuning (Level 2) ----
-#define HERO_MAX_HP           100
-#define HERO_ATTACK_DAMAGE    15
-#define HERO_ATTACK_COOLDOWN  0.5f    // seconds between hero attacks
-#define HERO_DODGE_DURATION   0.3f    // seconds the dodge lasts
-#define HERO_DODGE_COOLDOWN   1.0f    // seconds before dodge can be used again
-
-#define VILLAIN_MAX_HP        80
-#define VILLAIN_ATTACK_DAMAGE 10
-#define VILLAIN_ATTACK_INTERVAL 2.0f  // villain attacks every 2 seconds
-
-// ---- Villain asset path (swap this file to change the villain's look) ----
-#define VILLAIN_TEXTURE  "assets/enemies/villain_idle.png"
-=======
 #define LEVEL1_TIME 60.0f
 #define LEVEL1_MIN_COINS 10
 #define LEVEL1_LENGTH 8000.0f
@@ -52,7 +34,6 @@
 #define LEVEL1_PIT_COUNT 6
 #define LEVEL1_PIT_MIN_W 80.0f
 #define LEVEL1_PIT_MAX_W 160.0f
->>>>>>> main
 
 #define COIN_WIDTH 24
 #define COIN_HEIGHT 24
