@@ -19,6 +19,13 @@ Hero HeroCreate(Vector2 startPosition) {
     hero.isGrounded  = false;
     hero.facingRight = true;
 
+    hero.hp                  = HERO_MAX_HP;
+    hero.isAttacking         = false;
+    hero.attackCooldownTimer = 0.0f;
+    hero.isDodging           = false;
+    hero.dodgeTimer          = 0.0f;
+    hero.dodgeCooldownTimer  = 0.0f;
+
     hero.idleTexture = LoadTextureSafe(HERO_IDLE_TEXTURE);
     hero.runTexture  = LoadTextureSafe(HERO_RUN_TEXTURE);
     hero.jumpTexture = LoadTextureSafe(HERO_JUMP_TEXTURE);
@@ -108,4 +115,39 @@ void HeroDraw(const Hero *hero) {
             placeholderColor
         );
     }
+}
+
+void HeroUpdateCombat(Hero *hero, float deltaTime) {
+    // Cooldowns always tick down over time.
+    if (hero->attackCooldownTimer > 0.0f) hero->attackCooldownTimer -= deltaTime;
+    if (hero->dodgeCooldownTimer > 0.0f)  hero->dodgeCooldownTimer  -= deltaTime;
+
+    // ---- Attack ----
+    hero->isAttacking = false;
+    if (IsKeyPressed(KEY_J) && hero->attackCooldownTimer <= 0.0f) {
+        hero->isAttacking = true;
+        hero->attackCooldownTimer = HERO_ATTACK_COOLDOWN;
+    }
+
+    // ---- Dodge ----
+    if (IsKeyPressed(KEY_K) && hero->dodgeCooldownTimer <= 0.0f && !hero->isDodging) {
+        hero->isDodging  = true;
+        hero->dodgeTimer = HERO_DODGE_DURATION;
+        hero->dodgeCooldownTimer = HERO_DODGE_COOLDOWN;
+    }
+
+    if (hero->isDodging) {
+        hero->dodgeTimer -= deltaTime;
+        if (hero->dodgeTimer <= 0.0f) {
+            hero->isDodging = false;
+        }
+    }
+}
+
+void HeroTakeDamage(Hero *hero, int damage) {
+    // While dodging, the hero takes no damage.
+    if (hero->isDodging) return;
+
+    hero->hp -= damage;
+    if (hero->hp < 0) hero->hp = 0;
 }
