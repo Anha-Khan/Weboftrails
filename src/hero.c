@@ -1,153 +1,237 @@
 #include "hero.h"
 #include "config.h"
 
-// Small helper: tries to load a texture; if the file doesn't exist yet,
-// raylib will print a warning but won't crash. We check afterwards and
-// fall back to drawing a colored rectangle in HeroDraw() instead.
-static Texture2D LoadTextureSafe(const char *path) {
-    Texture2D tex = LoadTexture(path);
-    return tex; // tex.id will be 0 if loading failed - we check this later
+static Texture2D LoadSafe(const char *path) { return LoadTexture(path); }
+
+Hero HeroCreate(Vector2 pos)
+{
+    Hero h = {0};
+    h.position = pos;
+    h.width = HERO_WIDTH;
+    h.height = HERO_HEIGHT;
+    h.facingRight = true;
+    h.idleTexture = LoadSafe(HERO_IDLE_TEXTURE);
+    h.runTextures[0] = LoadSafe(HERO_RUN_TEXTURE_1);
+    h.runTextures[1] = LoadSafe(HERO_RUN_TEXTURE_2);
+    h.runTextures[2] = LoadSafe(HERO_RUN_TEXTURE_3);
+    h.runFrameCount = 3;
+    h.jumpTexture = LoadSafe(HERO_JUMP_TEXTURE);
+    h.duckTexture = LoadSafe(HERO_DUCK_TEXTURE);
+    return h;
 }
 
-Hero HeroCreate(Vector2 startPosition) {
-    Hero hero = { 0 };
-
-    hero.position    = startPosition;
-    hero.velocity    = (Vector2){ 0, 0 };
-    hero.width       = HERO_WIDTH;
-    hero.height      = HERO_HEIGHT;
-    hero.isGrounded  = false;
-    hero.facingRight = true;
-
-    hero.hp                  = HERO_MAX_HP;
-    hero.isAttacking         = false;
-    hero.attackCooldownTimer = 0.0f;
-    hero.isDodging           = false;
-    hero.dodgeTimer          = 0.0f;
-    hero.dodgeCooldownTimer  = 0.0f;
-
-    hero.idleTexture = LoadTextureSafe(HERO_IDLE_TEXTURE);
-    hero.runTexture  = LoadTextureSafe(HERO_RUN_TEXTURE);
-    hero.jumpTexture = LoadTextureSafe(HERO_JUMP_TEXTURE);
-
-    return hero;
+void HeroUnload(Hero *h)
+{
+    if (h->idleTexture.id)
+        UnloadTexture(h->idleTexture);
+    for (int i = 0; i < h->runFrameCount; i++)
+        if (h->runTextures[i].id)
+            UnloadTexture(h->runTextures[i]);
+    if (h->jumpTexture.id)
+        UnloadTexture(h->jumpTexture);
+    if (h->duckTexture.id)
+        UnloadTexture(h->duckTexture);
 }
 
-void HeroUnload(Hero *hero) {
-    // Only unload if it actually loaded (id != 0), otherwise raylib
-    // would print an unnecessary warning about unloading nothing.
-    if (hero->idleTexture.id != 0) UnloadTexture(hero->idleTexture);
-    if (hero->runTexture.id  != 0) UnloadTexture(hero->runTexture);
-    if (hero->jumpTexture.id != 0) UnloadTexture(hero->jumpTexture);
-}
-
-void HeroUpdate(Hero *hero, float deltaTime) {
-    // ---- Horizontal movement ----
-    hero->velocity.x = 0.0f;
-
-    if (IsKeyDown(KEY_A) || IsKeyDown(KEY_LEFT)) {
-        hero->velocity.x = -MOVE_SPEED;
-        hero->facingRight = false;
+void HeroUpdate(Hero *h, float dt, float camX)
+{
+    // Duck
+    bool wantDuck = (IsKeyDown(KEY_S) || IsKeyDown(KEY_DOWN)) && h->isGrounded;
+    if (wantDuck && !h->isDucking)
+    {
+        h->isDucking = true;
+        h->position.y += (HERO_HEIGHT - HERO_DUCK_HEIGHT);
+        h->height = HERO_DUCK_HEIGHT;
     }
-    if (IsKeyDown(KEY_D) || IsKeyDown(KEY_RIGHT)) {
-        hero->velocity.x = MOVE_SPEED;
-        hero->facingRight = true;
+    else if (!wantDuck && h->isDucking)
+    {
+        h->isDucking = false;
+        h->position.y -= (HERO_HEIGHT - HERO_DUCK_HEIGHT);
+        h->height = HERO_HEIGHT;
     }
 
-    // ---- Jumping ----
-    // Only allowed if currently standing on the ground.
-    if (hero->isGrounded && (IsKeyPressed(KEY_SPACE) || IsKeyPressed(KEY_W))) {
-        hero->velocity.y = JUMP_VELOCITY;
-        hero->isGrounded = false;
-    }
-
-    // ---- Gravity ----
-    // Always pulling down, unless we're standing on the ground.
-    hero->velocity.y += GRAVITY * deltaTime;
-
-    // ---- Apply velocity to position ----
-    hero->position.x += hero->velocity.x * deltaTime;
-    hero->position.y += hero->velocity.y * deltaTime;
-
-    // ---- Ground collision (simple flat floor for now) ----
-    float feetY = hero->position.y + hero->height;
-    if (feetY >= GROUND_Y) {
-        hero->position.y = GROUND_Y - hero->height;
-        hero->velocity.y = 0.0f;
-        hero->isGrounded = true;
-    }
-
-    // ---- Keep hero inside the screen horizontally (temporary) ----
-    if (hero->position.x < 0) hero->position.x = 0;
-    if (hero->position.x + hero->width > SCREEN_WIDTH) {
-        hero->position.x = SCREEN_WIDTH - hero->width;
-    }
-}
-
-void HeroDraw(const Hero *hero) {
-    // Pick which texture should be showing based on current state.
-    Texture2D current = hero->idleTexture;
-    if (!hero->isGrounded) {
-        current = hero->jumpTexture;
-    } else if (hero->velocity.x != 0.0f) {
-        current = hero->runTexture;
-    }
-
-    if (current.id != 0) {
-        // We have real art - draw it, flipped if facing left.
-        Rectangle source = { 0, 0, (float)current.width, (float)current.height };
-        if (!hero->facingRight) source.width = -source.width; // flip horizontally
-
-        Rectangle dest = {
-            hero->position.x, hero->position.y,
-            (float)hero->width, (float)hero->height
-        };
-        Vector2 origin = { 0, 0 };
-        DrawTexturePro(current, source, dest, origin, 0.0f, WHITE);
-    } else {
-        // No art yet - draw a placeholder rectangle so the game is
-        // still fully playable. Red = facing right, blue = facing left,
-        // just so you can visually confirm direction-flipping works.
-        Color placeholderColor = hero->facingRight ? RED : BLUE;
-        DrawRectangle(
-            (int)hero->position.x, (int)hero->position.y,
-            hero->width, hero->height,
-            placeholderColor
-        );
-    }
-}
-
-void HeroUpdateCombat(Hero *hero, float deltaTime) {
-    // Cooldowns always tick down over time.
-    if (hero->attackCooldownTimer > 0.0f) hero->attackCooldownTimer -= deltaTime;
-    if (hero->dodgeCooldownTimer > 0.0f)  hero->dodgeCooldownTimer  -= deltaTime;
-
-    // ---- Attack ----
-    hero->isAttacking = false;
-    if (IsKeyPressed(KEY_J) && hero->attackCooldownTimer <= 0.0f) {
-        hero->isAttacking = true;
-        hero->attackCooldownTimer = HERO_ATTACK_COOLDOWN;
-    }
-
-    // ---- Dodge ----
-    if (IsKeyPressed(KEY_K) && hero->dodgeCooldownTimer <= 0.0f && !hero->isDodging) {
-        hero->isDodging  = true;
-        hero->dodgeTimer = HERO_DODGE_DURATION;
-        hero->dodgeCooldownTimer = HERO_DODGE_COOLDOWN;
-    }
-
-    if (hero->isDodging) {
-        hero->dodgeTimer -= deltaTime;
-        if (hero->dodgeTimer <= 0.0f) {
-            hero->isDodging = false;
+    // Move
+    h->velocity.x = 0;
+    if (!h->isDucking)
+    {
+        if (IsKeyDown(KEY_A) || IsKeyDown(KEY_LEFT))
+        {
+            h->velocity.x = -MOVE_SPEED;
+            h->facingRight = false;
+        }
+        if (IsKeyDown(KEY_D) || IsKeyDown(KEY_RIGHT))
+        {
+            h->velocity.x = MOVE_SPEED;
+            h->facingRight = true;
         }
     }
+
+    // Jump
+    if (!h->isDucking && h->isGrounded &&
+        (IsKeyPressed(KEY_SPACE) || IsKeyPressed(KEY_W)))
+    {
+        h->velocity.y = JUMP_VELOCITY;
+        h->isGrounded = false;
+    }
+
+    // Run animation frame cycling (only while actually running on the ground)
+    if (h->isGrounded && !h->isDucking && h->velocity.x != 0 && h->runFrameCount > 0)
+    {
+        h->runFrameTimer += dt;
+        if (h->runFrameTimer >= RUN_FRAME_DURATION)
+        {
+            h->runFrameTimer = 0.0f;
+            h->runFrameIndex = (h->runFrameIndex + 1) % h->runFrameCount;
+        }
+    }
+    else
+    {
+        h->runFrameTimer = 0.0f;
+        h->runFrameIndex = 0;
+    }
+
+    // Gravity
+    h->velocity.y += GRAVITY * dt;
+
+    // Apply
+    h->position.x += h->velocity.x * dt;
+    h->position.y += h->velocity.y * dt;
+
+    // NOTE: ground/pit collision is resolved by Level1Update, not here.
+    // Hero only knows about gravity and movement; the level knows about
+    // terrain (ground vs. pits), so that's the single source of truth
+    // for isGrounded/snapping. Doing it here too caused gravity to be
+    // applied twice per frame while the hero was over a pit.
+
+    // Boundaries
+    if (h->position.x < camX)
+        h->position.x = camX;
+    if (h->position.x + h->width > camX + SCREEN_WIDTH)
+        h->position.x = camX + SCREEN_WIDTH - h->width;
 }
 
-void HeroTakeDamage(Hero *hero, int damage) {
-    // While dodging, the hero takes no damage.
-    if (hero->isDodging) return;
+Rectangle HeroGetRect(const Hero *h)
+{
+    return (Rectangle){h->position.x, h->position.y,
+                       (float)h->width, (float)h->height};
+}
 
-    hero->hp -= damage;
-    if (hero->hp < 0) hero->hp = 0;
+void HeroDraw(const Hero *h, float camX)
+{
+    float sx = h->position.x - camX;
+    float sy = h->position.y;
+
+    Texture2D t = h->idleTexture;
+    if (h->isDucking)
+        t = h->duckTexture;
+    else if (!h->isGrounded)
+        t = h->jumpTexture;
+    else if (h->velocity.x && h->runFrameCount > 0)
+        t = h->runTextures[h->runFrameIndex];
+
+    if (t.id)
+    {
+        Rectangle src = {0, 0, (float)t.width, (float)t.height};
+        if (!h->facingRight)
+            src.width = -src.width;
+        DrawTexturePro(t, src,
+                       (Rectangle){sx, sy, (float)h->width, (float)h->height},
+                       (Vector2){0, 0}, 0, WHITE);
+    }
+    else
+    {
+        Color c = h->isDucking ? YELLOW : (h->facingRight ? RED : BLUE);
+        DrawRectangle((int)sx, (int)sy, h->width, h->height, c);
+    }
+}
+
+// ---- Combat (Level 2) ----
+
+void HeroCombatReset(Hero *h)
+{
+    h->hp = HERO_MAX_HP;
+    h->maxHp = HERO_MAX_HP;
+    h->isAttacking = false;
+    h->hasHitThisSwing = false;
+    h->attackTimer = 0.0f;
+    h->attackCooldownTimer = 0.0f;
+    h->isBlocking = false;
+    h->isDodging = false;
+    h->dodgeTimer = 0.0f;
+    h->dodgeCooldownTimer = 0.0f;
+    h->invulnTimer = 0.0f;
+}
+
+void HeroCombatUpdate(Hero *h, float dt)
+{
+    if (h->attackCooldownTimer > 0.0f)
+        h->attackCooldownTimer -= dt;
+    if (h->dodgeCooldownTimer > 0.0f)
+        h->dodgeCooldownTimer -= dt;
+    if (h->invulnTimer > 0.0f)
+        h->invulnTimer -= dt;
+
+    // Attack: tap to swing, short active window, can't spam
+    if (h->isAttacking)
+    {
+        h->attackTimer -= dt;
+        if (h->attackTimer <= 0.0f)
+            h->isAttacking = false;
+    }
+    else if (IsKeyPressed(KEY_ATTACK) && h->attackCooldownTimer <= 0.0f && !h->isDodging)
+    {
+        h->isAttacking = true;
+        h->hasHitThisSwing = false;
+        h->attackTimer = HERO_ATTACK_DURATION;
+        h->attackCooldownTimer = HERO_ATTACK_COOLDOWN;
+    }
+
+    // Block: hold to reduce incoming damage, can't attack/dodge while blocking
+    h->isBlocking = IsKeyDown(KEY_BLOCK) && !h->isAttacking && !h->isDodging;
+
+    // Dodge: tap for a quick dash with i-frames in the direction you're facing
+    if (h->isDodging)
+    {
+        h->dodgeTimer -= dt;
+        float dir = h->facingRight ? 1.0f : -1.0f;
+        h->position.x += dir * HERO_DODGE_SPEED * dt;
+        if (h->dodgeTimer <= 0.0f)
+            h->isDodging = false;
+    }
+    else if (IsKeyPressed(KEY_DODGE) && h->dodgeCooldownTimer <= 0.0f && !h->isAttacking)
+    {
+        h->isDodging = true;
+        h->dodgeTimer = HERO_DODGE_DURATION;
+        h->dodgeCooldownTimer = HERO_DODGE_COOLDOWN;
+        h->invulnTimer = HERO_DODGE_DURATION;
+    }
+}
+
+Rectangle HeroGetAttackRect(const Hero *h)
+{
+    float x = h->facingRight ? (h->position.x + h->width) : (h->position.x - HERO_ATTACK_RANGE);
+    return (Rectangle){x, h->position.y, HERO_ATTACK_RANGE, (float)h->height};
+}
+
+void HeroTakeDamage(Hero *h, int amount)
+{
+    if (h->invulnTimer > 0.0f)
+        return; // mid-dodge, safe
+
+    int actual = amount;
+    if (h->isBlocking)
+    {
+        actual = (int)(amount * (1.0f - HERO_BLOCK_DAMAGE_REDUCTION));
+        if (actual < 1 && amount > 0)
+            actual = 1; // chip damage still gets through a block
+    }
+    h->hp -= actual;
+    if (h->hp < 0)
+        h->hp = 0;
+    h->invulnTimer = HERO_HIT_IFRAMES; // brief safety window after getting hit
+}
+
+bool HeroIsInvulnerable(const Hero *h)
+{
+    return h->invulnTimer > 0.0f;
 }

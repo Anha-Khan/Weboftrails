@@ -2,44 +2,54 @@
 #define ENEMY_H
 
 #include "raylib.h"
+#include "config.h"
 #include <stdbool.h>
 
-// ============================================================
-// ENEMY.H / ENEMY.C
-// The Level 2 villain. Mirrors hero.h/hero.c in structure:
-// - EnemyCreate sets up starting state and loads its texture
-// - EnemyUpdate ticks its attack timer and attacks every
-//   VILLAIN_ATTACK_INTERVAL seconds
-// - EnemyDraw renders it (falls back to a placeholder rectangle
-//   if no art is loaded yet, same pattern as the hero)
-// ============================================================
+typedef enum EnemyDifficulty
+{
+    ENEMY_EASY,
+    ENEMY_MEDIUM,
+    ENEMY_HARD
+} EnemyDifficulty;
 
-typedef struct Enemy {
+// Simple state machine: walk up to the hero, telegraph a hit, swing,
+// recover, repeat. Getting hit interrupts into a brief flinch.
+typedef enum EnemyPhase
+{
+    ENEMY_APPROACH,
+    ENEMY_TELEGRAPH,
+    ENEMY_ATTACKING,
+    ENEMY_RECOVER,
+    ENEMY_HITSTUN,
+    ENEMY_DEAD
+} EnemyPhase;
+
+typedef struct Enemy
+{
     Vector2 position;
-    int     width;
-    int     height;
-
-    int   hp;
-    float attackTimer;   // counts down; villain attacks when it hits 0
-    bool  justAttacked;  // true for one frame when an attack lands
-
-    Texture2D idleTexture;
+    int width;
+    int height;
+    int hp;
+    int maxHp;
+    int damage;
+    float moveSpeed;
+    float attackRange;
+    float telegraphDuration;
+    float cooldownDuration;
+    float phaseTimer;
+    bool facingRight;
+    bool hasHitHeroThisAttack;
+    EnemyDifficulty difficulty;
+    EnemyPhase phase;
 } Enemy;
 
-// Creates the villain at a starting position with full HP.
-Enemy EnemyCreate(Vector2 startPosition);
+Enemy EnemyCreate(Vector2 pos, EnemyDifficulty difficulty);
+void EnemyUpdate(Enemy *enemy, float deltaTime, Vector2 heroCenter);
+Rectangle EnemyGetRect(const Enemy *enemy);
+Rectangle EnemyGetAttackRect(const Enemy *enemy); // only meaningful during ENEMY_ATTACKING
+bool EnemyIsAttackActive(const Enemy *enemy);
+void EnemyApplyDamage(Enemy *enemy, int amount);
+bool EnemyIsAlive(const Enemy *enemy);
+void EnemyDraw(const Enemy *enemy, float camX);
 
-// Frees the villain's texture (call at program end).
-void EnemyUnload(Enemy *enemy);
-
-// Ticks the attack timer. When it reaches 0, the villain attacks
-// (justAttacked becomes true for that frame) and the timer resets.
-void EnemyUpdate(Enemy *enemy, float deltaTime);
-
-// Applies damage to the villain (call this when the hero's attack lands).
-void EnemyTakeDamage(Enemy *enemy, int damage);
-
-// Draws the villain's current sprite (or placeholder) at its position.
-void EnemyDraw(const Enemy *enemy);
-
-#endif // ENEMY_H
+#endif
