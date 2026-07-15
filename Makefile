@@ -3,8 +3,8 @@ SRC = src/main.c src/hero.c src/coin.c src/obstacle.c src/debris.c src/enemy.c s
 
 ifeq ($(OS),Windows_NT)
     OUT     = build/webhero.exe
-    CFLAGS  = -Wall -std=c99
-    LDFLAGS = -lraylib -lopengl32 -lgdi32 -lwinmm
+    CFLAGS  = -Wall -std=c99 -I/ucrt64/include
+    LDFLAGS = -L/ucrt64/lib -lraylib -lopengl32 -lgdi32 -lwinmm
     MKDIR   = mkdir -p build
     RUN     = ./$(OUT)
     CLEAN   = rm -rf build
