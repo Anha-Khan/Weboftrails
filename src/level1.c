@@ -81,6 +81,18 @@ static void PlaceObstacles(Level1 *lvl)
                     break;
                 }
             }
+
+            // Also keep distance from the obstacle placed right before this
+            // one. Without this check, a DUCK and a JUMP obstacle (which
+            // need opposite moves) could land right on top of each other
+            // with no gap to react between them - impossible to pass.
+            if (!conflict && i > 0)
+            {
+                Obstacle *prev = &lvl->obstacles[i - 1];
+                if (RangeTooClose(x, width, prev->position.x, (float)prev->width, margin))
+                    conflict = true;
+            }
+
             if (!conflict)
                 break;
             x += 50.0f;
@@ -90,6 +102,17 @@ static void PlaceObstacles(Level1 *lvl)
         float zoneEnd = zoneStart + spacing;
         if (x + width > zoneEnd)
             x = zoneEnd - width - 10.0f;
+
+        // Last-resort safety net: if the zone clamp above pushed x back
+        // into the previous obstacle's space, force a clean gap instead
+        // of allowing an unpassable pair through.
+        if (i > 0)
+        {
+            Obstacle *prev = &lvl->obstacles[i - 1];
+            float minX = prev->position.x + (float)prev->width + margin;
+            if (x < minX)
+                x = minX;
+        }
 
         bool isMoving = (i % 3 == 0);
         lvl->obstacles[i] = ObstacleCreate((Vector2){x, 0}, type, isMoving);
