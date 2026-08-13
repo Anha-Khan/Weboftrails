@@ -60,7 +60,13 @@ static void PlaceObstacles(Level1 *lvl)
     float startX = 500.0f;
     float endX = LEVEL1_LENGTH - 300.0f;
     float spacing = (endX - startX) / LEVEL1_OBS_COUNT;
-    float margin = 150.0f; // room to land/recover before the next hazard
+    // Gap must be at least the hero's own width, or there's no room to
+    // stand between two hazards - 150 is the normal design buffer, but
+    // this guarantees it never drops below HERO_WIDTH even if that
+    // constant changes later.
+    float margin = fmaxf((float)HERO_WIDTH, 150.0f);
+
+    float prevObsEnd = -1.0f; // end of the last placed obstacle; -1 = none yet
 
     for (int i = 0; i < LEVEL1_OBS_COUNT; i++)
     {
@@ -81,6 +87,11 @@ static void PlaceObstacles(Level1 *lvl)
                     break;
                 }
             }
+            // Also keep clear of the previous obstacle (zones can touch at
+            // their boundary, and pit-avoidance nudges above can push this
+            // obstacle right up against the one before it otherwise).
+            if (!conflict && prevObsEnd >= 0.0f && x - margin < prevObsEnd)
+                conflict = true;
             if (!conflict)
                 break;
             x += 50.0f;
@@ -90,9 +101,15 @@ static void PlaceObstacles(Level1 *lvl)
         float zoneEnd = zoneStart + spacing;
         if (x + width > zoneEnd)
             x = zoneEnd - width - 10.0f;
+        // If clamping back into the zone reintroduced a too-close gap to
+        // the previous obstacle, push forward one last time rather than
+        // silently allowing an adjacent pair.
+        if (prevObsEnd >= 0.0f && x - margin < prevObsEnd)
+            x = prevObsEnd + margin;
 
         bool isMoving = (i % 3 == 0);
         lvl->obstacles[i] = ObstacleCreate((Vector2){x, 0}, type, isMoving);
+        prevObsEnd = x + width;
     }
 }
 
@@ -101,7 +118,11 @@ static void PlaceDebris(Level1 *lvl)
     float startX = 700.0f;
     float endX = LEVEL1_LENGTH - 400.0f;
     float spacing = (endX - startX) / LEVEL1_DEBRIS_COUNT;
-    float margin = 200.0f; // room to dodge sideways before/after any other hazard
+    // Same guarantee as PlaceObstacles: never less than one hero-width
+    // of clearance, even though 200 is already the normal design buffer.
+    float margin = fmaxf((float)HERO_WIDTH, 200.0f);
+
+    float prevDebrisEnd = -1.0f; // end of the last placed debris; -1 = none yet
 
     for (int i = 0; i < LEVEL1_DEBRIS_COUNT; i++)
     {
@@ -119,6 +140,11 @@ static void PlaceDebris(Level1 *lvl)
                 if (RangeTooClose(x, DEBRIS_WIDTH, lvl->obstacles[o].position.x,
                                   (float)lvl->obstacles[o].width, margin))
                     conflict = true;
+            // Also keep clear of the previous debris drop-spot, for the
+            // same reason as obstacles: zone boundaries can otherwise let
+            // two debris hazards land right next to each other.
+            if (!conflict && prevDebrisEnd >= 0.0f && x - margin < prevDebrisEnd)
+                conflict = true;
             if (!conflict)
                 break;
             x += 50.0f;
@@ -128,10 +154,15 @@ static void PlaceDebris(Level1 *lvl)
         float zoneEnd = zoneStart + spacing;
         if (x + DEBRIS_WIDTH > zoneEnd)
             x = zoneEnd - DEBRIS_WIDTH - 10.0f;
+        // Same last-resort push as PlaceObstacles: don't let re-clamping
+        // into the zone silently reintroduce a too-close gap.
+        if (prevDebrisEnd >= 0.0f && x - margin < prevDebrisEnd)
+            x = prevDebrisEnd + margin;
 
         // Stagger each one's warning timer so they don't all drop together.
         float offset = (float)(rand() % 1000) / 1000.0f * DEBRIS_WARNING_DURATION;
         lvl->debris[i] = DebrisCreate(x, offset);
+        prevDebrisEnd = x + DEBRIS_WIDTH;
     }
 }
 
