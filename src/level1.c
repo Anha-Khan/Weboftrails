@@ -393,8 +393,8 @@ void Level1Draw(const Level1 *lvl)
         sprintf(txt, "Coins collected: %d", lvl->coinsCollected);
         DrawText(txt, SCREEN_WIDTH / 2 - MeasureText(txt, 28) / 2,
                  SCREEN_HEIGHT / 2 + 10, 28, WHITE);
-        DrawText("Press ENTER to continue",
-                 SCREEN_WIDTH / 2 - MeasureText("Press ENTER to continue", 26) / 2,
+        DrawText("Press ENTER to play again",
+                 SCREEN_WIDTH / 2 - MeasureText("Press ENTER to play again", 26) / 2,
                  SCREEN_HEIGHT / 2 + 60, 26, YELLOW);
     }
 
