@@ -3,13 +3,14 @@
 
 static Texture2D LoadSafe(const char *path) { return LoadTexture(path); }
 
-Hero HeroCreate(Vector2 pos)
+Hero HeroCreate(Vector2 pos, float speedMultiplier)
 {
     Hero h = {0};
     h.position = pos;
     h.width = HERO_WIDTH;
     h.height = HERO_HEIGHT;
     h.facingRight = true;
+    h.speedMultiplier = speedMultiplier;
     h.idleTexture = LoadSafe(HERO_IDLE_TEXTURE);
     h.runTextures[0] = LoadSafe(HERO_RUN_TEXTURE_1);
     h.runTextures[1] = LoadSafe(HERO_RUN_TEXTURE_2);
@@ -56,12 +57,12 @@ void HeroUpdate(Hero *h, float dt, float camX)
     {
         if (IsKeyDown(KEY_A) || IsKeyDown(KEY_LEFT))
         {
-            h->velocity.x = -MOVE_SPEED;
+            h->velocity.x = -MOVE_SPEED * h->speedMultiplier;
             h->facingRight = false;
         }
         if (IsKeyDown(KEY_D) || IsKeyDown(KEY_RIGHT))
         {
-            h->velocity.x = MOVE_SPEED;
+            h->velocity.x = MOVE_SPEED * h->speedMultiplier;
             h->facingRight = true;
         }
     }

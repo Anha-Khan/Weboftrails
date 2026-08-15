@@ -7,6 +7,8 @@
 #include "coin.h"
 #include "obstacle.h"
 #include "debris.h"
+#include "difficulty.h"
+#include "leaderboard.h"
 #include <stdbool.h>
 
 typedef struct Pit
@@ -20,7 +22,9 @@ typedef enum Level1State
     L1_COUNTDOWN,
     L1_PLAYING,
     L1_WIN,
-    L1_LOSE
+    L1_LOSE,
+    L1_ENTER_NAME,
+    L1_LEADERBOARD
 } Level1State;
 
 typedef struct Level1
@@ -37,11 +41,20 @@ typedef struct Level1
     Pit pits[LEVEL1_PIT_COUNT];
     Texture2D coinTexture;
     Texture2D bgFar;
+
+    Difficulty difficulty;
+    float runTime;             // seconds elapsed when the run was won
+    bool qualifiesForBoard;
+    char nameInput[LEADERBOARD_NAME_LEN];
+    int nameInputLength;
+    LeaderboardEntry board[LEADERBOARD_SIZE];
+    int boardCount;
 } Level1;
 
-Level1 Level1Create(void);
+Level1 Level1Create(Difficulty difficulty);
 void Level1Unload(Level1 *lvl);
 void Level1Update(Level1 *lvl, float deltaTime);
 void Level1Draw(const Level1 *lvl);
+void Level1AdvanceFromWin(Level1 *lvl); // moves L1_WIN -> name entry or leaderboard
 
 #endif

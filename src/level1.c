@@ -2,6 +2,7 @@
 #include "config.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <time.h>
 #include <math.h>
 
@@ -87,9 +88,6 @@ static void PlaceObstacles(Level1 *lvl)
                     break;
                 }
             }
-            // Also keep clear of the previous obstacle (zones can touch at
-            // their boundary, and pit-avoidance nudges above can push this
-            // obstacle right up against the one before it otherwise).
             if (!conflict && prevObsEnd >= 0.0f && x - margin < prevObsEnd)
                 conflict = true;
             if (!conflict)
@@ -101,9 +99,6 @@ static void PlaceObstacles(Level1 *lvl)
         float zoneEnd = zoneStart + spacing;
         if (x + width > zoneEnd)
             x = zoneEnd - width - 10.0f;
-        // If clamping back into the zone reintroduced a too-close gap to
-        // the previous obstacle, push forward one last time rather than
-        // silently allowing an adjacent pair.
         if (prevObsEnd >= 0.0f && x - margin < prevObsEnd)
             x = prevObsEnd + margin;
 
@@ -118,11 +113,9 @@ static void PlaceDebris(Level1 *lvl)
     float startX = 700.0f;
     float endX = LEVEL1_LENGTH - 400.0f;
     float spacing = (endX - startX) / LEVEL1_DEBRIS_COUNT;
-    // Same guarantee as PlaceObstacles: never less than one hero-width
-    // of clearance, even though 200 is already the normal design buffer.
     float margin = fmaxf((float)HERO_WIDTH, 200.0f);
 
-    float prevDebrisEnd = -1.0f; // end of the last placed debris; -1 = none yet
+    float prevDebrisEnd = -1.0f;
 
     for (int i = 0; i < LEVEL1_DEBRIS_COUNT; i++)
     {
@@ -140,9 +133,6 @@ static void PlaceDebris(Level1 *lvl)
                 if (RangeTooClose(x, DEBRIS_WIDTH, lvl->obstacles[o].position.x,
                                   (float)lvl->obstacles[o].width, margin))
                     conflict = true;
-            // Also keep clear of the previous debris drop-spot, for the
-            // same reason as obstacles: zone boundaries can otherwise let
-            // two debris hazards land right next to each other.
             if (!conflict && prevDebrisEnd >= 0.0f && x - margin < prevDebrisEnd)
                 conflict = true;
             if (!conflict)
@@ -154,19 +144,16 @@ static void PlaceDebris(Level1 *lvl)
         float zoneEnd = zoneStart + spacing;
         if (x + DEBRIS_WIDTH > zoneEnd)
             x = zoneEnd - DEBRIS_WIDTH - 10.0f;
-        // Same last-resort push as PlaceObstacles: don't let re-clamping
-        // into the zone silently reintroduce a too-close gap.
         if (prevDebrisEnd >= 0.0f && x - margin < prevDebrisEnd)
             x = prevDebrisEnd + margin;
 
-        // Stagger each one's warning timer so they don't all drop together.
         float offset = (float)(rand() % 1000) / 1000.0f * DEBRIS_WARNING_DURATION;
         lvl->debris[i] = DebrisCreate(x, offset);
         prevDebrisEnd = x + DEBRIS_WIDTH;
     }
 }
 
-Level1 Level1Create(void)
+Level1 Level1Create(Difficulty difficulty)
 {
     srand((unsigned int)time(NULL));
     Level1 lvl = {0};
@@ -176,7 +163,12 @@ Level1 Level1Create(void)
     lvl.countdownTimer = COUNTDOWN_DURATION;
     lvl.coinTexture = LoadTexture(COIN_TEXTURE);
     lvl.bgFar = LoadTexture(BG_FAR_TEXTURE);
-    lvl.hero = HeroCreate((Vector2){100.0f, GROUND_Y - HERO_HEIGHT});
+    lvl.difficulty = difficulty;
+    lvl.hero = HeroCreate((Vector2){100.0f, GROUND_Y - HERO_HEIGHT},
+                           DifficultySpeedMultiplier(difficulty));
+    lvl.nameInputLength = 0;
+    memset(lvl.nameInput, 0, sizeof(lvl.nameInput));
+    LeaderboardLoad(lvl.board, &lvl.boardCount);
     PlacePits(&lvl);
     PlaceCoins(&lvl);
     PlaceObstacles(&lvl);
@@ -193,6 +185,22 @@ void Level1Unload(Level1 *lvl)
         UnloadTexture(lvl->bgFar);
 }
 
+void Level1AdvanceFromWin(Level1 *lvl)
+{
+    if (lvl->state != L1_WIN)
+        return;
+    if (lvl->qualifiesForBoard)
+    {
+        lvl->nameInputLength = 0;
+        memset(lvl->nameInput, 0, sizeof(lvl->nameInput));
+        lvl->state = L1_ENTER_NAME;
+    }
+    else
+    {
+        lvl->state = L1_LEADERBOARD;
+    }
+}
+
 void Level1Update(Level1 *lvl, float dt)
 {
     if (lvl->state == L1_COUNTDOWN)
@@ -202,6 +210,38 @@ void Level1Update(Level1 *lvl, float dt)
         {
             lvl->countdownTimer = 0.0f;
             lvl->state = L1_PLAYING;
+        }
+        return;
+    }
+
+    if (lvl->state == L1_ENTER_NAME)
+    {
+        int ch = GetCharPressed();
+        while (ch > 0)
+        {
+            if (ch >= 32 && ch <= 125 && ch != ',' &&
+                lvl->nameInputLength < LEADERBOARD_NAME_LEN - 1)
+            {
+                lvl->nameInput[lvl->nameInputLength] = (char)ch;
+                lvl->nameInputLength++;
+                lvl->nameInput[lvl->nameInputLength] = '\0';
+            }
+            ch = GetCharPressed();
+        }
+        if (IsKeyPressed(KEY_BACKSPACE) && lvl->nameInputLength > 0)
+        {
+            lvl->nameInputLength--;
+            lvl->nameInput[lvl->nameInputLength] = '\0';
+        }
+        if (IsKeyPressed(KEY_ENTER) && lvl->nameInputLength > 0)
+        {
+            LeaderboardEntry entry = {0};
+            strncpy(entry.name, lvl->nameInput, LEADERBOARD_NAME_LEN - 1);
+            entry.coins = lvl->coinsCollected;
+            entry.time = lvl->runTime;
+            LeaderboardInsert(lvl->board, &lvl->boardCount, entry);
+            LeaderboardSave(lvl->board, lvl->boardCount);
+            lvl->state = L1_LEADERBOARD;
         }
         return;
     }
@@ -219,10 +259,6 @@ void Level1Update(Level1 *lvl, float dt)
 
     HeroUpdate(&lvl->hero, dt, lvl->cameraX);
 
-    // Pit check: any horizontal overlap between the hero and a pit means
-    // there's no ground under them there (previously this required the
-    // hero to be *entirely* inside the pit, so they'd visibly float over
-    // most of the gap before suddenly dropping once fully swallowed by it).
     float heroLeft = lvl->hero.position.x;
     float heroRight = lvl->hero.position.x + lvl->hero.width;
     bool overPit = false;
@@ -237,10 +273,6 @@ void Level1Update(Level1 *lvl, float dt)
         }
     }
 
-    // Gravity + vertical movement already happened once inside HeroUpdate.
-    // We only decide here whether the hero is standing on solid ground or
-    // falling through a pit - we must NOT integrate gravity/position again,
-    // that was applying gravity twice per frame while over a pit.
     if (overPit)
     {
         lvl->hero.isGrounded = false;
@@ -278,13 +310,6 @@ void Level1Update(Level1 *lvl, float dt)
         Rectangle obsRect = ObstacleGetRect(&lvl->obstacles[i]);
         if (!CheckCollisionRecs(heroRect, obsRect))
             continue;
-        // Obstacles (moving or static) just block your path - they don't
-        // instantly end the level. The only instant-death hazards are
-        // falling into a pit and getting hit by falling debris. Moving
-        // obstacles used to insta-kill on "crushedFromAbove", but since
-        // they bob up into the air on their own, that could trigger mid-
-        // jump (e.g. right after clearing a pit) in a way that looked and
-        // felt like landing on open ground - confusing and unfair.
         lvl->hero.position.x = obsRect.x - lvl->hero.width - 1.0f;
         lvl->hero.velocity.x = 0.0f;
     }
@@ -315,9 +340,19 @@ void Level1Update(Level1 *lvl, float dt)
     }
 
     if (lvl->hero.position.x + lvl->hero.width >= LEVEL1_LENGTH)
-        lvl->state = (lvl->coinsCollected >= LEVEL1_MIN_COINS)
-                         ? L1_WIN
-                         : L1_LOSE;
+    {
+        if (lvl->coinsCollected >= LEVEL1_MIN_COINS)
+        {
+            lvl->runTime = LEVEL1_TIME - lvl->timeLeft;
+            lvl->qualifiesForBoard = LeaderboardQualifies(
+                lvl->board, lvl->boardCount, lvl->coinsCollected, lvl->runTime);
+            lvl->state = L1_WIN;
+        }
+        else
+        {
+            lvl->state = L1_LOSE;
+        }
+    }
 }
 
 void Level1Draw(const Level1 *lvl)
@@ -341,7 +376,6 @@ void Level1Draw(const Level1 *lvl)
         DrawRectangle(0, 400, SCREEN_WIDTH, 200, (Color){100, 160, 80, 255});
     }
 
-    // Ground with pits
     float groundSegStart = 0;
     for (int i = 0; i < LEVEL1_PIT_COUNT; i++)
     {
@@ -396,9 +430,13 @@ void Level1Draw(const Level1 *lvl)
     Color coinColor = (lvl->coinsCollected >= LEVEL1_MIN_COINS) ? GREEN : WHITE;
     DrawText(coinText, 20, 20, 28, coinColor);
 
+    char diffText[32];
+    sprintf(diffText, "%s", DifficultyName(lvl->difficulty));
+    DrawText(diffText, SCREEN_WIDTH - 120, 20, 22, LIGHTGRAY);
+
     DrawText("A/D = move   SPACE = jump   S = duck",
              20, SCREEN_HEIGHT - 30, 18, LIGHTGRAY);
-    DrawFPS(SCREEN_WIDTH - 90, 10);
+    DrawFPS(SCREEN_WIDTH - 90, 60);
 
     if (lvl->state == L1_COUNTDOWN)
     {
@@ -421,12 +459,63 @@ void Level1Draw(const Level1 *lvl)
                  SCREEN_WIDTH / 2 - MeasureText("LEVEL COMPLETE!", 52) / 2,
                  SCREEN_HEIGHT / 2 - 60, 52, GREEN);
         char txt[64];
-        sprintf(txt, "Coins collected: %d", lvl->coinsCollected);
+        sprintf(txt, "Coins: %d   Time: %.1fs", lvl->coinsCollected, lvl->runTime);
         DrawText(txt, SCREEN_WIDTH / 2 - MeasureText(txt, 28) / 2,
                  SCREEN_HEIGHT / 2 + 10, 28, WHITE);
+        const char *prompt = lvl->qualifiesForBoard
+                                  ? "NEW HIGH SCORE! Press ENTER to enter your name"
+                                  : "Press ENTER to continue";
+        Color promptColor = lvl->qualifiesForBoard ? GOLD : YELLOW;
+        DrawText(prompt, SCREEN_WIDTH / 2 - MeasureText(prompt, 24) / 2,
+                 SCREEN_HEIGHT / 2 + 60, 24, promptColor);
+    }
+
+    if (lvl->state == L1_ENTER_NAME)
+    {
+        DrawRectangle(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, (Color){0, 0, 0, 170});
+        DrawText("NEW HIGH SCORE!",
+                 SCREEN_WIDTH / 2 - MeasureText("NEW HIGH SCORE!", 44) / 2,
+                 SCREEN_HEIGHT / 2 - 110, 44, GOLD);
+        char stats[64];
+        sprintf(stats, "Coins: %d   Time: %.1fs", lvl->coinsCollected, lvl->runTime);
+        DrawText(stats, SCREEN_WIDTH / 2 - MeasureText(stats, 24) / 2,
+                 SCREEN_HEIGHT / 2 - 50, 24, WHITE);
+        DrawText("Enter your name:",
+                 SCREEN_WIDTH / 2 - MeasureText("Enter your name:", 22) / 2,
+                 SCREEN_HEIGHT / 2 - 5, 22, LIGHTGRAY);
+        char display[LEADERBOARD_NAME_LEN + 2];
+        sprintf(display, "%s_", lvl->nameInput);
+        DrawText(display, SCREEN_WIDTH / 2 - MeasureText(display, 32) / 2,
+                 SCREEN_HEIGHT / 2 + 30, 32, YELLOW);
+        DrawText("Press ENTER to confirm",
+                 SCREEN_WIDTH / 2 - MeasureText("Press ENTER to confirm", 18) / 2,
+                 SCREEN_HEIGHT / 2 + 90, 18, LIGHTGRAY);
+    }
+
+    if (lvl->state == L1_LEADERBOARD)
+    {
+        DrawRectangle(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, (Color){0, 0, 0, 180});
+        DrawText("TOP 5", SCREEN_WIDTH / 2 - MeasureText("TOP 5", 44) / 2,
+                 100, 44, GOLD);
+        int y = 190;
+        for (int i = 0; i < lvl->boardCount; i++)
+        {
+            char row[80];
+            sprintf(row, "%d. %-12s  %2d coins  %.1fs",
+                    i + 1, lvl->board[i].name, lvl->board[i].coins, lvl->board[i].time);
+            DrawText(row, SCREEN_WIDTH / 2 - MeasureText(row, 24) / 2, y, 24, WHITE);
+            y += 40;
+        }
+        if (lvl->boardCount == 0)
+        {
+            DrawText("No scores yet - be the first!",
+                     SCREEN_WIDTH / 2 - MeasureText("No scores yet - be the first!", 22) / 2,
+                     y, 22, LIGHTGRAY);
+            y += 40;
+        }
         DrawText("Press ENTER to play again",
-                 SCREEN_WIDTH / 2 - MeasureText("Press ENTER to play again", 26) / 2,
-                 SCREEN_HEIGHT / 2 + 60, 26, YELLOW);
+                 SCREEN_WIDTH / 2 - MeasureText("Press ENTER to play again", 24) / 2,
+                 y + 40, 24, YELLOW);
     }
 
     if (lvl->state == L1_LOSE)
