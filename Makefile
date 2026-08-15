@@ -1,6 +1,5 @@
 CC  = gcc
-SRC = src/main.c src/hero.c src/coin.c src/obstacle.c src/debris.c src/level1.c
-
+SRC = src/main.c src/hero.c src/coin.c src/obstacle.c src/debris.c src/level1.c src/difficulty.c src/leaderboard.c src/menu.c
 ifeq ($(OS),Windows_NT)
     OUT     = build/webhero.exe
     CFLAGS  = -Wall -std=c99 -I/ucrt64/include

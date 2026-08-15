@@ -20,9 +20,10 @@ typedef struct Hero
     float runFrameTimer;
     Texture2D jumpTexture;
     Texture2D duckTexture;
+    float speedMultiplier; // scales MOVE_SPEED; set from the chosen difficulty
 } Hero;
 
-Hero HeroCreate(Vector2 startPosition);
+Hero HeroCreate(Vector2 startPosition, float speedMultiplier);
 void HeroUnload(Hero *hero);
 void HeroUpdate(Hero *hero, float deltaTime, float cameraX);
 void HeroDraw(const Hero *hero, float cameraX);
