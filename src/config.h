@@ -96,4 +96,10 @@
 #define MENU_HARD_CENTER_Y 236.0f
 #define MENU_CIRCLE_RADIUS 94.0f
 
+
+#define MENU_MUSIC "assets/audio/menu_music.ogg"
+#define SFX_COIN "assets/audio/coin.wav"
+#define SFX_LOSE "assets/audio/lose.wav"
+#define SFX_WIN "assets/audio/win.wav"
+
 #endif
