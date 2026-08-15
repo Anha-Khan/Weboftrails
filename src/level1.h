@@ -49,6 +49,12 @@ typedef struct Level1
     int nameInputLength;
     LeaderboardEntry board[LEADERBOARD_SIZE];
     int boardCount;
+
+    Texture2D obsStaticTallTexture;
+    Texture2D obsStaticLowTexture;
+    Texture2D obsMovingTallTexture;
+    Texture2D obsMovingLowTexture;
+    Texture2D debrisTexture;
 } Level1;
 
 Level1 Level1Create(Difficulty difficulty);

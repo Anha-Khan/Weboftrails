@@ -2,7 +2,7 @@
 #include "config.h"
 #include <math.h>
 
-Obstacle ObstacleCreate(Vector2 pos, ObstacleType type, bool isMoving)
+Obstacle ObstacleCreate(Vector2 pos, ObstacleType type, bool isMoving, Texture2D texture)
 {
     Obstacle obs = {0};
     obs.position = pos;
@@ -10,6 +10,7 @@ Obstacle ObstacleCreate(Vector2 pos, ObstacleType type, bool isMoving)
     obs.isMoving = isMoving;
     obs.moveSpeed = OBS_MOVE_SPEED;
     obs.moveRange = OBS_MOVE_RANGE;
+    obs.texture = texture;
 
     if (type == OBS_TALL)
     {
@@ -53,22 +54,24 @@ void ObstacleDraw(const Obstacle *obs, float camX)
     if (sx + obs->width < 0 || sx > SCREEN_WIDTH)
         return;
 
+    if (obs->texture.id)
+    {
+        DrawTexturePro(obs->texture,
+                       (Rectangle){0, 0, (float)obs->texture.width, (float)obs->texture.height},
+                       (Rectangle){sx, sy, (float)obs->width, (float)obs->height},
+                       (Vector2){0, 0}, 0, WHITE);
+        return;
+    }
+
+    // Fallback if the texture failed to load - same colored-box behavior as before.
     if (obs->type == OBS_TALL)
     {
         DrawRectangle((int)sx, (int)sy, obs->width, obs->height, DARKBROWN);
-        if (obs->isMoving)
-            DrawRectangleLinesEx((Rectangle){sx, sy,
-                                             (float)obs->width, (float)obs->height},
-                                 3, ORANGE);
         DrawText("JUMP", (int)sx + 2, (int)sy + obs->height / 2 - 8, 12, WHITE);
     }
     else
     {
         DrawRectangle((int)sx, (int)sy, obs->width, obs->height, PURPLE);
-        if (obs->isMoving)
-            DrawRectangleLinesEx((Rectangle){sx, sy,
-                                             (float)obs->width, (float)obs->height},
-                                 3, ORANGE);
         DrawText("DUCK", (int)sx + 4, (int)sy + obs->height / 2 - 8, 12, WHITE);
     }
 }

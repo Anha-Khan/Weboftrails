@@ -102,8 +102,13 @@ static void PlaceObstacles(Level1 *lvl)
         if (prevObsEnd >= 0.0f && x - margin < prevObsEnd)
             x = prevObsEnd + margin;
 
-        bool isMoving = (i % 3 == 0);
-        lvl->obstacles[i] = ObstacleCreate((Vector2){x, 0}, type, isMoving);
+bool isMoving = (i % 3 == 0);
+        Texture2D tex;
+        if (type == OBS_TALL)
+            tex = isMoving ? lvl->obsMovingTallTexture : lvl->obsStaticTallTexture;
+        else
+            tex = isMoving ? lvl->obsMovingLowTexture : lvl->obsStaticLowTexture;
+        lvl->obstacles[i] = ObstacleCreate((Vector2){x, 0}, type, isMoving, tex);
         prevObsEnd = x + width;
     }
 }
@@ -148,7 +153,7 @@ static void PlaceDebris(Level1 *lvl)
             x = prevDebrisEnd + margin;
 
         float offset = (float)(rand() % 1000) / 1000.0f * DEBRIS_WARNING_DURATION;
-        lvl->debris[i] = DebrisCreate(x, offset);
+        lvl->debris[i] = DebrisCreate(x, offset, lvl->debrisTexture);
         prevDebrisEnd = x + DEBRIS_WIDTH;
     }
 }
@@ -163,6 +168,11 @@ Level1 Level1Create(Difficulty difficulty)
     lvl.countdownTimer = COUNTDOWN_DURATION;
     lvl.coinTexture = LoadTexture(COIN_TEXTURE);
     lvl.bgFar = LoadTexture(BG_FAR_TEXTURE);
+    lvl.obsStaticTallTexture = LoadTexture(OBS_STATIC_TALL_TEXTURE);
+    lvl.obsStaticLowTexture = LoadTexture(OBS_STATIC_LOW_TEXTURE);
+    lvl.obsMovingTallTexture = LoadTexture(OBS_MOVING_TALL_TEXTURE);
+    lvl.obsMovingLowTexture = LoadTexture(OBS_MOVING_LOW_TEXTURE);
+    lvl.debrisTexture = LoadTexture(DEBRIS_TEXTURE);
     lvl.difficulty = difficulty;
     lvl.hero = HeroCreate((Vector2){100.0f, GROUND_Y - HERO_HEIGHT},
                            DifficultySpeedMultiplier(difficulty));
@@ -183,6 +193,11 @@ void Level1Unload(Level1 *lvl)
         UnloadTexture(lvl->coinTexture);
     if (lvl->bgFar.id)
         UnloadTexture(lvl->bgFar);
+    if (lvl->obsStaticTallTexture.id) UnloadTexture(lvl->obsStaticTallTexture);
+    if (lvl->obsStaticLowTexture.id) UnloadTexture(lvl->obsStaticLowTexture);
+    if (lvl->obsMovingTallTexture.id) UnloadTexture(lvl->obsMovingTallTexture);
+    if (lvl->obsMovingLowTexture.id) UnloadTexture(lvl->obsMovingLowTexture);
+    if (lvl->debrisTexture.id) UnloadTexture(lvl->debrisTexture);
 }
 
 void Level1AdvanceFromWin(Level1 *lvl)
