@@ -55,6 +55,10 @@ typedef struct Level1
     Texture2D obsMovingTallTexture;
     Texture2D obsMovingLowTexture;
     Texture2D debrisTexture;
+
+    Sound coinSound;
+    Sound loseSound;
+    Sound winSound;
 } Level1;
 
 Level1 Level1Create(Difficulty difficulty);

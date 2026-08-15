@@ -13,10 +13,13 @@ typedef enum GameStage
 int main(void)
 {
     InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, GAME_TITLE);
+    InitAudioDevice();
     SetTargetFPS(TARGET_FPS);
 
     GameStage stage = STAGE_MENU;
     MenuState menu = MenuCreate();
+    PlayMusicStream(menu.music);
+
     Level1 level1 = {0};
     bool levelExists = false;
 
@@ -26,9 +29,12 @@ int main(void)
 
         if (stage == STAGE_MENU)
         {
+            UpdateMusicStream(menu.music); // required every frame for streamed audio to keep buffering
+
             bool confirmed = MenuUpdate(&menu);
             if (confirmed)
             {
+                StopMusicStream(menu.music);
                 if (levelExists)
                     Level1Unload(&level1);
                 level1 = Level1Create(menu.selected);
@@ -57,6 +63,7 @@ int main(void)
             Level1Unload(&level1);
             levelExists = false;
             stage = STAGE_MENU;
+            PlayMusicStream(menu.music); // restart the menu track when returning to it
             continue;
         }
 
@@ -70,6 +77,7 @@ int main(void)
     if (levelExists)
         Level1Unload(&level1);
     MenuUnload(&menu);
+    CloseAudioDevice();
     CloseWindow();
     return 0;
 }

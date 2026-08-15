@@ -6,6 +6,8 @@ MenuState MenuCreate(void)
     MenuState menu = {0};
     menu.background = LoadTexture(MENU_BG_IMAGE);
     menu.selected = DIFF_MEDIUM;
+    menu.music = LoadMusicStream(MENU_MUSIC);
+    menu.music.looping = true;
     return menu;
 }
 
@@ -13,6 +15,7 @@ void MenuUnload(MenuState *menu)
 {
     if (menu->background.id)
         UnloadTexture(menu->background);
+        UnloadMusicStream(menu->music);
 }
 
 static Vector2 CircleCenter(Difficulty d)

@@ -102,7 +102,7 @@ static void PlaceObstacles(Level1 *lvl)
         if (prevObsEnd >= 0.0f && x - margin < prevObsEnd)
             x = prevObsEnd + margin;
 
-bool isMoving = (i % 3 == 0);
+        bool isMoving = (i % 3 == 0);
         Texture2D tex;
         if (type == OBS_TALL)
             tex = isMoving ? lvl->obsMovingTallTexture : lvl->obsStaticTallTexture;
@@ -173,6 +173,9 @@ Level1 Level1Create(Difficulty difficulty)
     lvl.obsMovingTallTexture = LoadTexture(OBS_MOVING_TALL_TEXTURE);
     lvl.obsMovingLowTexture = LoadTexture(OBS_MOVING_LOW_TEXTURE);
     lvl.debrisTexture = LoadTexture(DEBRIS_TEXTURE);
+    lvl.coinSound = LoadSound(SFX_COIN);
+    lvl.loseSound = LoadSound(SFX_LOSE);
+    lvl.winSound = LoadSound(SFX_WIN);
     lvl.difficulty = difficulty;
     lvl.hero = HeroCreate((Vector2){100.0f, GROUND_Y - HERO_HEIGHT},
                            DifficultySpeedMultiplier(difficulty));
@@ -193,11 +196,19 @@ void Level1Unload(Level1 *lvl)
         UnloadTexture(lvl->coinTexture);
     if (lvl->bgFar.id)
         UnloadTexture(lvl->bgFar);
-    if (lvl->obsStaticTallTexture.id) UnloadTexture(lvl->obsStaticTallTexture);
-    if (lvl->obsStaticLowTexture.id) UnloadTexture(lvl->obsStaticLowTexture);
-    if (lvl->obsMovingTallTexture.id) UnloadTexture(lvl->obsMovingTallTexture);
-    if (lvl->obsMovingLowTexture.id) UnloadTexture(lvl->obsMovingLowTexture);
-    if (lvl->debrisTexture.id) UnloadTexture(lvl->debrisTexture);
+    if (lvl->obsStaticTallTexture.id)
+        UnloadTexture(lvl->obsStaticTallTexture);
+    if (lvl->obsStaticLowTexture.id)
+        UnloadTexture(lvl->obsStaticLowTexture);
+    if (lvl->obsMovingTallTexture.id)
+        UnloadTexture(lvl->obsMovingTallTexture);
+    if (lvl->obsMovingLowTexture.id)
+        UnloadTexture(lvl->obsMovingLowTexture);
+    if (lvl->debrisTexture.id)
+        UnloadTexture(lvl->debrisTexture);
+    UnloadSound(lvl->coinSound);
+    UnloadSound(lvl->loseSound);
+    UnloadSound(lvl->winSound);
 }
 
 void Level1AdvanceFromWin(Level1 *lvl)
@@ -268,12 +279,15 @@ void Level1Update(Level1 *lvl, float dt)
     if (lvl->timeLeft <= 0.0f)
     {
         lvl->timeLeft = 0.0f;
+        PlaySound(lvl->loseSound);
         lvl->state = L1_LOSE;
         return;
     }
 
     HeroUpdate(&lvl->hero, dt, lvl->cameraX);
 
+    // Pit check: any horizontal overlap between the hero and a pit means
+    // there's no ground under them there.
     float heroLeft = lvl->hero.position.x;
     float heroRight = lvl->hero.position.x + lvl->hero.width;
     bool overPit = false;
@@ -293,6 +307,7 @@ void Level1Update(Level1 *lvl, float dt)
         lvl->hero.isGrounded = false;
         if (lvl->hero.position.y > SCREEN_HEIGHT + 100)
         {
+            PlaySound(lvl->loseSound);
             lvl->state = L1_LOSE;
             return;
         }
@@ -337,6 +352,7 @@ void Level1Update(Level1 *lvl, float dt)
         {
             lvl->coins[i].collected = true;
             lvl->coinsCollected++;
+            PlaySound(lvl->coinSound);
         }
     }
 
@@ -349,6 +365,7 @@ void Level1Update(Level1 *lvl, float dt)
             continue;
         if (CheckCollisionRecs(heroRect, DebrisGetRect(&lvl->debris[i])))
         {
+            PlaySound(lvl->loseSound);
             lvl->state = L1_LOSE;
             return;
         }
@@ -361,10 +378,12 @@ void Level1Update(Level1 *lvl, float dt)
             lvl->runTime = LEVEL1_TIME - lvl->timeLeft;
             lvl->qualifiesForBoard = LeaderboardQualifies(
                 lvl->board, lvl->boardCount, lvl->coinsCollected, lvl->runTime);
+            PlaySound(lvl->winSound);
             lvl->state = L1_WIN;
         }
         else
         {
+            PlaySound(lvl->loseSound);
             lvl->state = L1_LOSE;
         }
     }

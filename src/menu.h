@@ -9,6 +9,7 @@ typedef struct MenuState
 {
     Texture2D background;
     Difficulty selected;
+    Music music;
 } MenuState;
 
 MenuState MenuCreate(void);
