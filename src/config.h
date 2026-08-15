@@ -66,6 +66,12 @@
 #define DEBRIS_WARNING_DURATION 1.0f
 #define DEBRIS_LANDED_DURATION 0.9f
 
+#define OBS_STATIC_TALL_TEXTURE "assets/levels/obstacle_static_tall.png"
+#define OBS_STATIC_LOW_TEXTURE "assets/levels/obstacle_static_low.png"
+#define OBS_MOVING_TALL_TEXTURE "assets/levels/obstacle_moving_tall.png"
+#define OBS_MOVING_LOW_TEXTURE "assets/levels/obstacle_moving_low.png"
+#define DEBRIS_TEXTURE "assets/levels/debris_rock.png"
+
 
 #define FONT_TITLE "assets/fonts/PressStart2P-Regular.ttf"
 

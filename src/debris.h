@@ -5,31 +5,30 @@
 #include "config.h"
 #include <stdbool.h>
 
-// Falling debris is a different kind of hazard than Obstacle:
-// obstacles are timed jump/duck checks that stay put, debris is a
-// telegraphed hazard that drops straight down onto a fixed spot and
-// has to be dodged sideways (move away in X before it lands).
 typedef enum DebrisState
 {
-    DEBRIS_WARNING, // sitting up top, ground marker pulsing as a warning
-    DEBRIS_FALLING, // actively dropping - touching it here is a hit
-    DEBRIS_LANDED   // harmless rubble on the ground, about to reset
+    DEBRIS_WARNING,
+    DEBRIS_FALLING,
+    DEBRIS_LANDED
 } DebrisState;
 
 typedef struct FallingDebris
 {
-    float x; // fixed landing spot, doesn't move horizontally
+    float x;
     float y;
     int width;
     int height;
     DebrisState state;
     float timer;
+    Texture2D texture; // shared, loaded once by Level1 - see DebrisCreate
 } FallingDebris;
 
-FallingDebris DebrisCreate(float x, float initialTimerOffset);
-void DebrisUpdate(FallingDebris *debris, float dt);
-Rectangle DebrisGetRect(const FallingDebris *debris);
-bool DebrisIsDeadly(const FallingDebris *debris);
-void DebrisDraw(const FallingDebris *debris, float camX);
+// `texture` is loaded once by the caller (Level1Create) and passed in by
+// value - FallingDebris does not own it and must not unload it.
+FallingDebris DebrisCreate(float x, float initialTimerOffset, Texture2D texture);
+void DebrisUpdate(FallingDebris *d, float dt);
+Rectangle DebrisGetRect(const FallingDebris *d);
+bool DebrisIsDeadly(const FallingDebris *d);
+void DebrisDraw(const FallingDebris *d, float camX);
 
 #endif
