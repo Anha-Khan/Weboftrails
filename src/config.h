@@ -35,6 +35,14 @@
 #define LEVEL1_PIT_MIN_W 80.0f
 #define LEVEL1_PIT_MAX_W 160.0f
 
+#define DIFFICULTY_EASY_SPEED_MULT   0.8f
+#define DIFFICULTY_MEDIUM_SPEED_MULT 1.0f
+#define DIFFICULTY_HARD_SPEED_MULT   1.3f
+
+#define LEADERBOARD_SIZE 5
+#define LEADERBOARD_NAME_LEN 13 // 12 chars + null terminator
+#define LEADERBOARD_FILE "leaderboard.txt"
+
 #define COIN_WIDTH 24
 #define COIN_HEIGHT 24
 #define COIN_FLOAT_Y (GROUND_Y - 80.0f)
@@ -57,5 +65,29 @@
 #define DEBRIS_FALL_SPEED 950.0f
 #define DEBRIS_WARNING_DURATION 1.0f
 #define DEBRIS_LANDED_DURATION 0.9f
+
+
+#define FONT_TITLE "assets/fonts/PressStart2P-Regular.ttf"
+
+#define MENU_TITLE_TEXT "WEB OF TRAILS"
+#define MENU_SUBTITLE_TEXT "Coins Await. Keep Running!"
+
+#define MENU_CIRCLE_RADIUS 85.0f
+#define MENU_CIRCLE_SPACING 260.0f
+#define MENU_CIRCLE_SELECTED_SCALE 1.18f
+#define MENU_CIRCLE_POP_OFFSET 14.0f
+#define MENU_ANIM_SPEED 8.0f // higher = snappier slide/pop
+
+#define MENU_BG_IMAGE "assets/menu/menu_background.jpg"
+
+// Circle centers, measured against the source image. Approximate —
+// nudge these if the highlight rings don't sit exactly on the circles.
+#define MENU_EASY_CENTER_X 459.0f
+#define MENU_EASY_CENTER_Y 236.0f
+#define MENU_MEDIUM_CENTER_X 627.0f
+#define MENU_MEDIUM_CENTER_Y 236.0f
+#define MENU_HARD_CENTER_X 805.0f
+#define MENU_HARD_CENTER_Y 236.0f
+#define MENU_CIRCLE_RADIUS 94.0f
 
 #endif
