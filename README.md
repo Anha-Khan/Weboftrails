@@ -1,141 +1,220 @@
-# Web Hero (Web of Trails)
+# Web of Trails
 
-A 2.5D side-scrolling action game built in C with raylib. Working title —
-rename freely. Three people are building this together (Anha, Nazifa,
-Chand) — see `CONTRIBUTING.md` before you start editing.
+Web of Trails is a 2D side-scrolling runner built in C with
+[raylib](https://www.raylib.com/). Choose a difficulty, collect enough coins,
+avoid the hazards, and reach the end before time runs out.
 
-## Project structure
+## Screenshots
 
-```
-webhero/
-├── Makefile              <- build instructions
-├── src/
-│   ├── main.c            <- entry point / game loop
-│   ├── config.h          <- ALL settings + asset filenames (edit this freely)
-│   ├── hero.h / hero.c   <- player character: movement, jump, run animation
-│   ├── obstacle.h/.c    <- low obstacles (some move up and down)
-│   ├── debris.h / .c     <- falling-object hazard: warns, drops, has to be dodged
-│   ├── coin.h / .c       <- collectible coins
-│   └── level1.h / .c     <- level 1: layout, camera, win/lose, HUD
-├── assets/
-│   ├── hero/             <- hero sprite images go here
-│   ├── enemies/          <- enemy sprite images go here (not used yet)
-│   ├── backgrounds/      <- parallax background layers go here
-│   └── levels/           <- level data / level-specific art (e.g. coin sprite)
-└── build/                <- compiled game ends up here (auto-created)
-```
+### Difficulty menu
+
+![Web of Trails difficulty menu](docs/screenshots/menu.png)
+
+### Gameplay
+
+![Web of Trails gameplay](docs/screenshots/gameplay.png)
+
+### Jumping
+
+Press `W` or Space to jump. The hero uses a separate jump pose while airborne.
+
+![Hero performing a jump](docs/screenshots/jump.png)
+
+### Avoiding pits
+
+Start the jump before reaching the edge and clear the entire opening before
+landing.
+
+![Hero jumping across a pit](docs/screenshots/dodge-pit.png)
+
+### Avoiding a ground obstacle
+
+Jump high enough for the hero's full collision area to pass over the obstacle.
+
+![Hero jumping over a ground obstacle](docs/screenshots/dodge-static-obstacle.png)
+
+### Avoiding a moving obstacle
+
+Watch its vertical movement and jump when there is a safe opening.
+
+![Hero avoiding a moving obstacle](docs/screenshots/dodge-moving-obstacle.png)
+
+### Avoiding falling debris
+
+Move away from the warning position before the debris reaches the hero.
+
+![Hero moving away from falling debris](docs/screenshots/dodge-falling-debris.png)
+
+### Leaderboard
+
+After a successful run, qualifying scores appear in the local top five.
+
+![Web of Trails top-five leaderboard](docs/screenshots/leaderboard.png)
+
+## How to play
+
+1. Select **Easy** or **Hard** from the opening menu.
+2. Collect at least **10 coins**.
+3. Jump over pits and obstacles, and avoid falling debris.
+4. Reach the end of the level before the **60-second timer** expires.
+
+Running into a normal obstacle blocks the hero but does not end the game.
+Falling into a pit, being hit by falling debris, or running out of time causes
+a game over.
 
 ## Controls
 
-- `A` / Left Arrow — move left
-- `D` / Right Arrow — move right
-- `SPACE` or `W` — jump
-- `R` — restart after losing
-- `ENTER` — continue after winning
+| Action | Keyboard control |
+| --- | --- |
+| Move left | `A` or Left Arrow |
+| Move right | `D` or Right Arrow |
+| Jump | `W` or Space |
+| Select difficulty | Left/Right Arrow, `A`/`D`, or `1`/`2` |
+| Start the game | Enter |
+| Restart after losing | `R` |
+| Continue after winning | Enter |
 
-## What's in Level 1
+The difficulty options can also be selected with the mouse.
 
-Run from the start to the "END" flag before the clock runs out, while
-collecting at least `LEVEL1_MIN_COINS` coins along the way. Three kinds of
-hazards are mixed along the path:
+## Difficulty modes
 
-- **Low obstacles** (purple) — jump over or avoid them. Some move.
-- **Pits** — gaps in the ground with no floor. Fall in and it's game over,
-  so jump across before you reach the edge.
-- **Falling debris** — a red warning marker flashes on the ground to show
-  where something is about to drop from above. You have a moment to move
-  out of that spot sideways before it lands; get hit while it's falling
-  and it's game over.
+- **Easy** uses a slower game speed and is best for learning the level.
+- **Hard** increases the speed of the level and its hazards.
 
-Bumping into a low obstacle just blocks your path (like a wall) —
-it doesn't end the level, so you can back up and re-time your jump.
-The only instant-fail hazards are pits and falling debris.
+## Hazards and collectibles
 
-Coins are worth grabbing but not required for every one — just hit the
-minimum shown in the top-left HUD before reaching the end.
+| Item | Behaviour |
+| --- | --- |
+| Coin | Adds one coin to the player's score |
+| Obstacle | Blocks the hero; jump over it to continue |
+| Moving obstacle | Moves vertically and must be timed carefully |
+| Pit | Ends the run after the hero falls into it |
+| Falling debris | Shows a warning before falling; a direct hit ends the run |
 
-## Building and running
+## Game architecture
 
-**Mac/Linux:** see `GETTING_STARTED.md`. Short version, once raylib is
-installed (`brew install raylib`):
+The game uses a small module-based architecture. `main.c` owns the application
+loop and switches between the menu and gameplay. `level1.c` coordinates the
+level modules and decides when the player wins or loses.
+
+```mermaid
+flowchart TD
+    Main["main.c<br>Application loop and screen switching"]
+    Menu["menu.c<br>Difficulty selection"]
+    Level["level1.c<br>Level state, camera, HUD and collisions"]
+    Difficulty["difficulty.c<br>Easy and Hard speed settings"]
+    Hero["hero.c<br>Movement, jumping and animation"]
+    Coins["coin.c<br>Collectibles"]
+    Obstacles["obstacle.c<br>Static and moving obstacles"]
+    Debris["debris.c<br>Falling hazards"]
+    Board["leaderboard.c<br>Local top-five scores"]
+    Config["config.h<br>Constants and asset paths"]
+
+    Main --> Menu
+    Main --> Level
+    Menu --> Difficulty
+    Level --> Difficulty
+    Level --> Hero
+    Level --> Coins
+    Level --> Obstacles
+    Level --> Debris
+    Level --> Board
+    Config -.-> Main
+    Config -.-> Menu
+    Config -.-> Level
+```
+
+Each gameplay frame follows the same simple flow:
+
+```text
+Read input -> update the world -> check collisions and game state -> draw
+```
+
+## Project structure
+
+```text
+.
+├── assets/                 Images, sprites, fonts, and level art
+├── docs/screenshots/       Screenshots used in this README
+├── src/
+│   ├── main.c              Entry point and main loop
+│   ├── config.h            Game settings and asset paths
+│   ├── menu.c              Difficulty menu
+│   ├── difficulty.c        Difficulty values
+│   ├── level1.c            Level rules, layout, camera, HUD, and states
+│   ├── hero.c              Hero controls and animation
+│   ├── coin.c              Coin logic
+│   ├── obstacle.c          Obstacle logic
+│   ├── debris.c            Falling-debris logic
+│   └── leaderboard.c       Local leaderboard logic
+├── Makefile                Build commands
+└── leaderboard.txt         Local scores, created when needed
+```
+
+Header files in `src/` define the public interface for each matching `.c`
+module.
+
+## Build and run
+
+### Requirements
+
+- A C99-compatible compiler
+- GNU Make
+- raylib 5.x
+
+### macOS
+
+Install raylib with Homebrew, then run the game from the project directory:
 
 ```bash
+brew install raylib
 make run
 ```
 
-**Windows (Visual Studio):** see `GETTING_STARTED_WINDOWS.md`.
+See [GETTING_STARTED.md](GETTING_STARTED.md) for more macOS and Linux setup
+details.
 
-Other useful commands:
+### Windows
+
+Follow [GETTING_STARTED_WINDOWS.md](GETTING_STARTED_WINDOWS.md) for the Visual
+Studio setup.
+
+### Useful commands
 
 ```bash
-make        # compile only
-make clean  # delete compiled files and start fresh
+make        # Build the game at build/webhero
+make run    # Build and start the game
+make clean  # Remove compiled build files
 ```
 
-## Swapping the hero's look (or any asset)
+Always start the game from the repository root so its relative asset paths can
+be found.
 
-Open `src/config.h` — near the top you'll see filenames like:
+## Leaderboard
 
-```c
-#define HERO_IDLE_TEXTURE   "assets/hero/hero_idle.png"
-#define HERO_RUN_TEXTURE_1  "assets/hero/hero_run1.png"
-#define HERO_RUN_TEXTURE_2  "assets/hero/hero_run2.png"
-#define HERO_RUN_TEXTURE_3  "assets/hero/hero_run3.png"
-#define HERO_JUMP_TEXTURE   "assets/hero/hero_jump.png"
-```
+After completing the level, enter a player name to save the result. The game
+stores the best five scores locally in `leaderboard.txt`. Scores are ranked by
+coins collected, with a faster completion time used as the tiebreaker.
 
-Save your own PNGs into `assets/hero/` using those exact filenames (or
-change the filenames in `config.h` to match whatever you name your
-files). No other code needs to change. If a file is missing, the game
-doesn't crash — it draws a colored placeholder shape instead, so you can
-keep playing/testing before the art exists.
+The current leaderboard is local to one computer. A shared online leaderboard
+would require a hosted database and server-side API.
 
-## What's in Level 2
+## Changing settings or artwork
 
-After clearing Level 1 you get a short "Level 2 unlocked" screen, then
-drop into a combat stage: run along a path and fight three enemies in a
-row (easy, then medium, then hard). Each fight locks the camera in place
-until that enemy is down, then you keep running to the next one.
+Most gameplay values and asset paths are collected in `src/config.h`. Use that
+file to adjust values such as the time limit, required coins, movement speed,
+screen size, or image filenames.
 
-Combat controls:
-- `J` — attack (short swing in front of you, has a brief cooldown)
-- `K` — hold to block (cuts incoming damage, can't attack/dodge at the
-  same time)
-- `L` — dodge (a quick dash in the direction you're facing, with a
-  short window of invulnerability — this is the escape option when an
-  enemy's attack is telegraphed)
+Artwork lives under `assets/`. When replacing an image, either keep its current
+filename or update the corresponding path in `src/config.h`.
 
-Enemies wind up (flash red) before swinging — that flash is your cue to
-dodge, block, or just back out of range. Your HP bar is above your head;
-run out and it's game over (`R` to retry). Beat all three and you get a
-"Level 2 complete" screen (Level 3 isn't built yet).
+## Current scope
 
-## Status
+- One playable side-scrolling level
+- Easy and Hard difficulty modes
+- Coins, pits, obstacles, and falling debris
+- Win, loss, restart, and countdown states
+- Local top-five leaderboard
+- Native desktop build using raylib
 
-**Level 1**
-- [x] Running, jumping, gravity
-- [x] Camera that scrolls with the hero
-- [x] Low obstacles, including ones that move
-- [x] Pits you can fall into
-- [x] Falling debris hazard (telegraphed, dodge sideways)
-- [x] Coins, timer, win/lose states, restart
-- [x] Run-cycle animation
-- [ ] `hero_jump.png` art (currently placeholder box)
-- [ ] `assets/levels/coin.png` art (currently a placeholder gold circle)
-
-**Level 1 -> Level 2 transition**
-- [x] Congratulations/unlock screen after winning Level 1
-
-**Level 2**
-- [x] HP bar above the hero's head
-- [x] Attack / block / dodge combat
-- [x] Three enemies (easy/medium/hard) fought one at a time, in sequence
-- [x] Per-enemy HP bar + telegraphed attacks
-- [x] Win/lose states, restart
-- [ ] Enemy sprite art (currently colored placeholder boxes)
-- [ ] Web-swinging mechanic
-- [ ] Level 3
-
-See `CONTRIBUTING.md` for how we merge work between branches, and open a
-pull request into `main` once a feature is working — nobody edits `main`
-directly.
+See [CONTRIBUTING.md](CONTRIBUTING.md) before making collaborative changes.
