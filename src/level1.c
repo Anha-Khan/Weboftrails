@@ -15,6 +15,47 @@ static bool RangeTooClose(float x, float width, float otherX, float otherWidth, 
     return (x - margin) < (otherX + otherWidth) && (x + width + margin) > otherX;
 }
 
+static bool IsClearOfPits(const Level1 *lvl, float x, float width)
+{
+    for (int i = 0; i < LEVEL1_PIT_COUNT; i++)
+        if (RangeTooClose(x, width, lvl->pits[i].x, lvl->pits[i].width,
+                          PIT_OBSTACLE_CLEARANCE))
+            return false;
+    return true;
+}
+
+static void Lose(Level1 *lvl)
+{
+    PlaySound(lvl->loseSound);
+    lvl->state = L1_LOSE;
+}
+
+static void ClearNameInput(Level1 *lvl)
+{
+    lvl->nameInputLength = 0;
+    memset(lvl->nameInput, 0, sizeof(lvl->nameInput));
+}
+
+static bool IsOverPit(const Level1 *lvl)
+{
+    float center = lvl->hero.position.x + lvl->hero.width * 0.5f;
+    for (int i = 0; i < LEVEL1_PIT_COUNT; i++)
+    {
+        float left = lvl->pits[i].x + PIT_EDGE_GRACE;
+        float right = lvl->pits[i].x + lvl->pits[i].width - PIT_EDGE_GRACE;
+        if (center > left && center < right)
+            return true;
+    }
+    return false;
+}
+
+static void UpdateLevelCamera(Level1 *lvl)
+{
+    float maxCameraX = LEVEL1_LENGTH - SCREEN_WIDTH;
+    float targetX = lvl->hero.position.x - SCREEN_WIDTH * 0.3f;
+    lvl->cameraX = fmaxf(0.0f, fminf(targetX, maxCameraX));
+}
+
 static void PlacePits(Level1 *lvl)
 {
     float startX = 600.0f;
@@ -61,55 +102,32 @@ static void PlaceObstacles(Level1 *lvl)
     float startX = 500.0f;
     float endX = LEVEL1_LENGTH - 300.0f;
     float spacing = (endX - startX) / LEVEL1_OBS_COUNT;
-    // Gap must be at least the hero's own width, or there's no room to
-    // stand between two hazards - 150 is the normal design buffer, but
-    // this guarantees it never drops below HERO_WIDTH even if that
-    // constant changes later.
     float margin = fmaxf((float)HERO_WIDTH, 150.0f);
-
-    float prevObsEnd = -1.0f; // end of the last placed obstacle; -1 = none yet
+    float prevObsEnd = -1.0f;
 
     for (int i = 0; i < LEVEL1_OBS_COUNT; i++)
     {
         float zoneStart = startX + i * spacing;
-        float x = zoneStart;
-        ObstacleType type = (i % 2 == 0) ? OBS_TALL : OBS_LOW;
-        float width = (type == OBS_TALL) ? OBS_TALL_WIDTH : OBS_LOW_WIDTH;
+        float width = OBS_LOW_WIDTH;
+        float zoneEnd = zoneStart + spacing;
+        float lastX = zoneEnd - width - 10.0f;
+        float x = -1000.0f;
 
-        int attempts = 0;
-        while (attempts < 20)
+        for (float candidate = zoneStart; candidate <= lastX; candidate += 25.0f)
         {
-            bool conflict = false;
-            for (int p = 0; p < LEVEL1_PIT_COUNT; p++)
+            bool tooCloseToObstacle = prevObsEnd >= 0.0f && candidate - margin < prevObsEnd;
+            if (IsClearOfPits(lvl, candidate, width) && !tooCloseToObstacle)
             {
-                if (RangeTooClose(x, width, lvl->pits[p].x, lvl->pits[p].width, margin))
-                {
-                    conflict = true;
-                    break;
-                }
-            }
-            if (!conflict && prevObsEnd >= 0.0f && x - margin < prevObsEnd)
-                conflict = true;
-            if (!conflict)
+                x = candidate;
                 break;
-            x += 50.0f;
-            attempts++;
+            }
         }
 
-        float zoneEnd = zoneStart + spacing;
-        if (x + width > zoneEnd)
-            x = zoneEnd - width - 10.0f;
-        if (prevObsEnd >= 0.0f && x - margin < prevObsEnd)
-            x = prevObsEnd + margin;
-
         bool isMoving = (i % 3 == 0);
-        Texture2D tex;
-        if (type == OBS_TALL)
-            tex = isMoving ? lvl->obsMovingTallTexture : lvl->obsStaticTallTexture;
-        else
-            tex = isMoving ? lvl->obsMovingLowTexture : lvl->obsStaticLowTexture;
-        lvl->obstacles[i] = ObstacleCreate((Vector2){x, 0}, type, isMoving, tex);
-        prevObsEnd = x + width;
+        Texture2D tex = isMoving ? lvl->obsMovingLowTexture : lvl->obsStaticLowTexture;
+        lvl->obstacles[i] = ObstacleCreate((Vector2){x, 0}, isMoving, tex);
+        if (x >= 0.0f)
+            prevObsEnd = x + width;
     }
 }
 
@@ -168,9 +186,9 @@ Level1 Level1Create(Difficulty difficulty)
     lvl.countdownTimer = COUNTDOWN_DURATION;
     lvl.coinTexture = LoadTexture(COIN_TEXTURE);
     lvl.bgFar = LoadTexture(BG_FAR_TEXTURE);
-    lvl.obsStaticTallTexture = LoadTexture(OBS_STATIC_TALL_TEXTURE);
+    lvl.groundTexture = LoadTexture(GROUND_TEXTURE);
+    lvl.pitTexture = LoadTexture(PIT_TEXTURE);
     lvl.obsStaticLowTexture = LoadTexture(OBS_STATIC_LOW_TEXTURE);
-    lvl.obsMovingTallTexture = LoadTexture(OBS_MOVING_TALL_TEXTURE);
     lvl.obsMovingLowTexture = LoadTexture(OBS_MOVING_LOW_TEXTURE);
     lvl.debrisTexture = LoadTexture(DEBRIS_TEXTURE);
     lvl.coinSound = LoadSound(SFX_COIN);
@@ -179,8 +197,7 @@ Level1 Level1Create(Difficulty difficulty)
     lvl.difficulty = difficulty;
     lvl.hero = HeroCreate((Vector2){100.0f, GROUND_Y - HERO_HEIGHT},
                            DifficultySpeedMultiplier(difficulty));
-    lvl.nameInputLength = 0;
-    memset(lvl.nameInput, 0, sizeof(lvl.nameInput));
+    ClearNameInput(&lvl);
     LeaderboardLoad(lvl.board, &lvl.boardCount);
     PlacePits(&lvl);
     PlaceCoins(&lvl);
@@ -196,12 +213,12 @@ void Level1Unload(Level1 *lvl)
         UnloadTexture(lvl->coinTexture);
     if (lvl->bgFar.id)
         UnloadTexture(lvl->bgFar);
-    if (lvl->obsStaticTallTexture.id)
-        UnloadTexture(lvl->obsStaticTallTexture);
+    if (lvl->groundTexture.id)
+        UnloadTexture(lvl->groundTexture);
+    if (lvl->pitTexture.id)
+        UnloadTexture(lvl->pitTexture);
     if (lvl->obsStaticLowTexture.id)
         UnloadTexture(lvl->obsStaticLowTexture);
-    if (lvl->obsMovingTallTexture.id)
-        UnloadTexture(lvl->obsMovingTallTexture);
     if (lvl->obsMovingLowTexture.id)
         UnloadTexture(lvl->obsMovingLowTexture);
     if (lvl->debrisTexture.id)
@@ -217,8 +234,7 @@ void Level1AdvanceFromWin(Level1 *lvl)
         return;
     if (lvl->qualifiesForBoard)
     {
-        lvl->nameInputLength = 0;
-        memset(lvl->nameInput, 0, sizeof(lvl->nameInput));
+        ClearNameInput(lvl);
         lvl->state = L1_ENTER_NAME;
     }
     else
@@ -279,42 +295,29 @@ void Level1Update(Level1 *lvl, float dt)
     if (lvl->timeLeft <= 0.0f)
     {
         lvl->timeLeft = 0.0f;
-        PlaySound(lvl->loseSound);
-        lvl->state = L1_LOSE;
+        Lose(lvl);
         return;
     }
 
     HeroUpdate(&lvl->hero, dt, lvl->cameraX);
 
-    // Pit check: any horizontal overlap between the hero and a pit means
-    // there's no ground under them there.
-    float heroLeft = lvl->hero.position.x;
-    float heroRight = lvl->hero.position.x + lvl->hero.width;
-    bool overPit = false;
-    for (int i = 0; i < LEVEL1_PIT_COUNT; i++)
-    {
-        float pitLeft = lvl->pits[i].x;
-        float pitRight = lvl->pits[i].x + lvl->pits[i].width;
-        if (heroRight > pitLeft && heroLeft < pitRight)
-        {
-            overPit = true;
-            break;
-        }
-    }
+    bool overPit = IsOverPit(lvl);
+    float heroFeet = lvl->hero.position.y + lvl->hero.height;
+    if (!lvl->isFallingInPit && overPit &&
+        heroFeet >= GROUND_Y + PIT_FALL_START_DEPTH)
+        lvl->isFallingInPit = true;
 
-    if (overPit)
+    if (lvl->isFallingInPit)
     {
         lvl->hero.isGrounded = false;
-        if (lvl->hero.position.y > SCREEN_HEIGHT + 100)
+        if (heroFeet >= GROUND_Y + PIT_LOSE_DEPTH)
         {
-            PlaySound(lvl->loseSound);
-            lvl->state = L1_LOSE;
+            Lose(lvl);
             return;
         }
     }
-    else
+    else if (!overPit)
     {
-        float heroFeet = lvl->hero.position.y + lvl->hero.height;
         if (heroFeet >= GROUND_Y)
         {
             lvl->hero.position.y = GROUND_Y - lvl->hero.height;
@@ -323,12 +326,7 @@ void Level1Update(Level1 *lvl, float dt)
         }
     }
 
-    float targetCamX = lvl->hero.position.x - SCREEN_WIDTH * 0.3f;
-    if (targetCamX < 0)
-        targetCamX = 0;
-    if (targetCamX > LEVEL1_LENGTH - SCREEN_WIDTH)
-        targetCamX = LEVEL1_LENGTH - SCREEN_WIDTH;
-    lvl->cameraX = targetCamX;
+    UpdateLevelCamera(lvl);
 
     Rectangle heroRect = HeroGetRect(&lvl->hero);
 
@@ -365,8 +363,7 @@ void Level1Update(Level1 *lvl, float dt)
             continue;
         if (CheckCollisionRecs(heroRect, DebrisGetRect(&lvl->debris[i])))
         {
-            PlaySound(lvl->loseSound);
-            lvl->state = L1_LOSE;
+            Lose(lvl);
             return;
         }
     }
@@ -383,10 +380,57 @@ void Level1Update(Level1 *lvl, float dt)
         }
         else
         {
-            PlaySound(lvl->loseSound);
-            lvl->state = L1_LOSE;
+            Lose(lvl);
         }
     }
+}
+
+static void DrawGroundSegment(const Level1 *lvl, float x, float width)
+{
+    if (!lvl->groundTexture.id)
+    {
+        DrawRectangle((int)x, (int)GROUND_Y, (int)width,
+                      SCREEN_HEIGHT - (int)GROUND_Y, DARKGREEN);
+        return;
+    }
+
+    float sourceY = lvl->groundTexture.height * 0.23f;
+    float sourceHeight = lvl->groundTexture.height * 0.55f;
+    float groundHeight = SCREEN_HEIGHT - GROUND_Y;
+    float scale = groundHeight / sourceHeight;
+    float tileWidth = lvl->groundTexture.width * scale;
+    float worldX = x + lvl->cameraX;
+    float firstTileX = floorf(worldX / tileWidth) * tileWidth - lvl->cameraX;
+    int clipLeft = (int)fmaxf(0.0f, ceilf(x));
+    int clipRight = (int)fminf((float)SCREEN_WIDTH, floorf(x + width));
+
+    if (clipRight <= clipLeft)
+        return;
+
+    BeginScissorMode(clipLeft, (int)GROUND_Y, clipRight - clipLeft, (int)groundHeight);
+    for (float tileX = firstTileX; tileX < x + width; tileX += tileWidth)
+    {
+        DrawTexturePro(lvl->groundTexture,
+                       (Rectangle){0, sourceY, (float)lvl->groundTexture.width, sourceHeight},
+                       (Rectangle){tileX, GROUND_Y, tileWidth, groundHeight},
+                       (Vector2){0, 0}, 0, WHITE);
+    }
+    EndScissorMode();
+}
+
+static void DrawPit(const Level1 *lvl, float x, float width)
+{
+    if (!lvl->pitTexture.id)
+    {
+        DrawRectangle((int)x, (int)GROUND_Y, (int)width,
+                      SCREEN_HEIGHT - (int)GROUND_Y, (Color){20, 20, 20, 255});
+        return;
+    }
+
+    DrawTexturePro(lvl->pitTexture,
+                   (Rectangle){0, 0, (float)lvl->pitTexture.width, (float)lvl->pitTexture.height},
+                   (Rectangle){x, GROUND_Y, width, SCREEN_HEIGHT - GROUND_Y},
+                   (Vector2){0, 0}, 0, WHITE);
 }
 
 void Level1Draw(const Level1 *lvl)
@@ -416,26 +460,19 @@ void Level1Draw(const Level1 *lvl)
         float pitScreenX = lvl->pits[i].x - lvl->cameraX;
         float segWidth = pitScreenX - groundSegStart;
         if (segWidth > 0)
-            DrawRectangle((int)groundSegStart, (int)GROUND_Y,
-                          (int)segWidth,
-                          SCREEN_HEIGHT - (int)GROUND_Y, DARKGREEN);
+            DrawGroundSegment(lvl, groundSegStart, segWidth);
         groundSegStart = pitScreenX + lvl->pits[i].width;
     }
     float remaining = SCREEN_WIDTH - groundSegStart;
     if (remaining > 0)
-        DrawRectangle((int)groundSegStart, (int)GROUND_Y,
-                      (int)remaining,
-                      SCREEN_HEIGHT - (int)GROUND_Y, DARKGREEN);
+        DrawGroundSegment(lvl, groundSegStart, remaining);
 
     for (int i = 0; i < LEVEL1_PIT_COUNT; i++)
     {
         float sx = lvl->pits[i].x - lvl->cameraX;
         if (sx + lvl->pits[i].width < 0 || sx > SCREEN_WIDTH)
             continue;
-        DrawRectangle((int)sx, (int)GROUND_Y,
-                      (int)lvl->pits[i].width,
-                      SCREEN_HEIGHT - (int)GROUND_Y,
-                      (Color){20, 20, 20, 255});
+        DrawPit(lvl, sx, lvl->pits[i].width);
     }
 
     for (int i = 0; i < LEVEL1_COIN_COUNT; i++)
@@ -468,7 +505,7 @@ void Level1Draw(const Level1 *lvl)
     sprintf(diffText, "%s", DifficultyName(lvl->difficulty));
     DrawText(diffText, SCREEN_WIDTH - 120, 20, 22, LIGHTGRAY);
 
-    DrawText("A/D = move   SPACE = jump   S = duck",
+    DrawText("A/D = move   SPACE = jump",
              20, SCREEN_HEIGHT - 30, 18, LIGHTGRAY);
     DrawFPS(SCREEN_WIDTH - 90, 60);
 

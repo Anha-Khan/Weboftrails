@@ -4,7 +4,6 @@
 typedef enum Difficulty
 {
     DIFF_EASY,
-    DIFF_MEDIUM,
     DIFF_HARD,
     DIFF_COUNT
 } Difficulty;

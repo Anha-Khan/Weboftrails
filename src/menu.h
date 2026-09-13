@@ -15,7 +15,7 @@ typedef struct MenuState
 MenuState MenuCreate(void);
 void MenuUnload(MenuState *menu);
 
-// Handles mouse clicks on the circles and keyboard fallback (arrows/1-2-3).
+// Handles mouse clicks on the circles and keyboard fallback (arrows/1-2).
 // Returns true the frame ENTER is pressed - caller should start the game then.
 bool MenuUpdate(MenuState *menu);
 

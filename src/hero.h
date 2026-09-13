@@ -12,15 +12,13 @@ typedef struct Hero
     int height;
     bool isGrounded;
     bool facingRight;
-    bool isDucking;
     Texture2D idleTexture;
     Texture2D runTextures[3];
     int runFrameCount;
     int runFrameIndex;
     float runFrameTimer;
     Texture2D jumpTexture;
-    Texture2D duckTexture;
-    float speedMultiplier; // scales MOVE_SPEED; set from the chosen difficulty
+    float speedMultiplier;
 } Hero;
 
 Hero HeroCreate(Vector2 startPosition, float speedMultiplier);

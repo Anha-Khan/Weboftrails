@@ -1,8 +1,6 @@
 #include "hero.h"
 #include "config.h"
 
-static Texture2D LoadSafe(const char *path) { return LoadTexture(path); }
-
 Hero HeroCreate(Vector2 pos, float speedMultiplier)
 {
     Hero h = {0};
@@ -11,13 +9,12 @@ Hero HeroCreate(Vector2 pos, float speedMultiplier)
     h.height = HERO_HEIGHT;
     h.facingRight = true;
     h.speedMultiplier = speedMultiplier;
-    h.idleTexture = LoadSafe(HERO_IDLE_TEXTURE);
-    h.runTextures[0] = LoadSafe(HERO_RUN_TEXTURE_1);
-    h.runTextures[1] = LoadSafe(HERO_RUN_TEXTURE_2);
-    h.runTextures[2] = LoadSafe(HERO_RUN_TEXTURE_3);
+    h.idleTexture = LoadTexture(HERO_IDLE_TEXTURE);
+    h.runTextures[0] = LoadTexture(HERO_RUN_TEXTURE_1);
+    h.runTextures[1] = LoadTexture(HERO_RUN_TEXTURE_2);
+    h.runTextures[2] = LoadTexture(HERO_RUN_TEXTURE_3);
     h.runFrameCount = 3;
-    h.jumpTexture = LoadSafe(HERO_JUMP_TEXTURE);
-    h.duckTexture = LoadSafe(HERO_DUCK_TEXTURE);
+    h.jumpTexture = LoadTexture(HERO_JUMP_TEXTURE);
     return h;
 }
 
@@ -30,53 +27,32 @@ void HeroUnload(Hero *h)
             UnloadTexture(h->runTextures[i]);
     if (h->jumpTexture.id)
         UnloadTexture(h->jumpTexture);
-    if (h->duckTexture.id)
-        UnloadTexture(h->duckTexture);
 }
 
 void HeroUpdate(Hero *h, float dt, float camX)
 {
-    // Duck
-    bool wantDuck = (IsKeyDown(KEY_S) || IsKeyDown(KEY_DOWN)) && h->isGrounded;
-    if (wantDuck && !h->isDucking)
-    {
-        h->isDucking = true;
-        h->position.y += (HERO_HEIGHT - HERO_DUCK_HEIGHT);
-        h->height = HERO_DUCK_HEIGHT;
-    }
-    else if (!wantDuck && h->isDucking)
-    {
-        h->isDucking = false;
-        h->position.y -= (HERO_HEIGHT - HERO_DUCK_HEIGHT);
-        h->height = HERO_HEIGHT;
-    }
-
     // Move
     h->velocity.x = 0;
-    if (!h->isDucking)
+    if (IsKeyDown(KEY_A) || IsKeyDown(KEY_LEFT))
     {
-        if (IsKeyDown(KEY_A) || IsKeyDown(KEY_LEFT))
-        {
-            h->velocity.x = -MOVE_SPEED * h->speedMultiplier;
-            h->facingRight = false;
-        }
-        if (IsKeyDown(KEY_D) || IsKeyDown(KEY_RIGHT))
-        {
-            h->velocity.x = MOVE_SPEED * h->speedMultiplier;
-            h->facingRight = true;
-        }
+        h->velocity.x = -MOVE_SPEED * h->speedMultiplier;
+        h->facingRight = false;
+    }
+    if (IsKeyDown(KEY_D) || IsKeyDown(KEY_RIGHT))
+    {
+        h->velocity.x = MOVE_SPEED * h->speedMultiplier;
+        h->facingRight = true;
     }
 
     // Jump
-    if (!h->isDucking && h->isGrounded &&
+    if (h->isGrounded &&
         (IsKeyPressed(KEY_SPACE) || IsKeyPressed(KEY_W)))
     {
         h->velocity.y = JUMP_VELOCITY;
         h->isGrounded = false;
     }
 
-    // Run animation frame cycling (only while actually running on the ground)
-    if (h->isGrounded && !h->isDucking && h->velocity.x != 0 && h->runFrameCount > 0)
+    if (h->isGrounded && h->velocity.x != 0 && h->runFrameCount > 0)
     {
         h->runFrameTimer += dt;
         if (h->runFrameTimer >= RUN_FRAME_DURATION)
@@ -91,20 +67,9 @@ void HeroUpdate(Hero *h, float dt, float camX)
         h->runFrameIndex = 0;
     }
 
-    // Gravity
     h->velocity.y += GRAVITY * dt;
-
-    // Apply
     h->position.x += h->velocity.x * dt;
     h->position.y += h->velocity.y * dt;
-
-    // NOTE: ground/pit collision is resolved by Level1Update, not here.
-    // Hero only knows about gravity and movement; the level knows about
-    // terrain (ground vs. pits), so that's the single source of truth
-    // for isGrounded/snapping. Doing it here too caused gravity to be
-    // applied twice per frame while the hero was over a pit.
-
-    // Boundaries
     if (h->position.x < camX)
         h->position.x = camX;
     if (h->position.x + h->width > camX + SCREEN_WIDTH)
@@ -123,9 +88,7 @@ void HeroDraw(const Hero *h, float camX)
     float sy = h->position.y;
 
     Texture2D t = h->idleTexture;
-    if (h->isDucking)
-        t = h->duckTexture;
-    else if (!h->isGrounded)
+    if (!h->isGrounded)
         t = h->jumpTexture;
     else if (h->velocity.x && h->runFrameCount > 0)
         t = h->runTextures[h->runFrameIndex];
@@ -141,7 +104,7 @@ void HeroDraw(const Hero *h, float camX)
     }
     else
     {
-        Color c = h->isDucking ? YELLOW : (h->facingRight ? RED : BLUE);
+        Color c = h->facingRight ? RED : BLUE;
         DrawRectangle((int)sx, (int)sy, h->width, h->height, c);
     }
 }

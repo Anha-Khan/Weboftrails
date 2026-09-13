@@ -5,7 +5,7 @@ MenuState MenuCreate(void)
 {
     MenuState menu = {0};
     menu.background = LoadTexture(MENU_BG_IMAGE);
-    menu.selected = DIFF_MEDIUM;
+    menu.selected = DIFF_EASY;
     menu.music = LoadMusicStream(MENU_MUSIC);
     menu.music.looping = true;
     return menu;
@@ -20,21 +20,17 @@ void MenuUnload(MenuState *menu)
 
 static Vector2 CircleCenter(Difficulty d)
 {
-    switch (d)
-    {
-        case DIFF_EASY:
-            return (Vector2){MENU_EASY_CENTER_X, MENU_EASY_CENTER_Y};
-        case DIFF_HARD:
-            return (Vector2){MENU_HARD_CENTER_X, MENU_HARD_CENTER_Y};
-        case DIFF_MEDIUM:
-        default:
-            return (Vector2){MENU_MEDIUM_CENTER_X, MENU_MEDIUM_CENTER_Y};
-    }
+    float x = (d == DIFF_HARD) ? MENU_HARD_CENTER_X : MENU_EASY_CENTER_X;
+    return (Vector2){x, MENU_OPTION_CENTER_Y};
+}
+
+static void DrawCenteredText(const char *text, int y, int size, Color color)
+{
+    DrawText(text, SCREEN_WIDTH / 2 - MeasureText(text, size) / 2, y, size, color);
 }
 
 bool MenuUpdate(MenuState *menu)
 {
-    // Keyboard fallback
     if (IsKeyPressed(KEY_LEFT) || IsKeyPressed(KEY_A))
         menu->selected = (Difficulty)((menu->selected + DIFF_COUNT - 1) % DIFF_COUNT);
     if (IsKeyPressed(KEY_RIGHT) || IsKeyPressed(KEY_D))
@@ -42,11 +38,8 @@ bool MenuUpdate(MenuState *menu)
     if (IsKeyPressed(KEY_ONE))
         menu->selected = DIFF_EASY;
     if (IsKeyPressed(KEY_TWO))
-        menu->selected = DIFF_MEDIUM;
-    if (IsKeyPressed(KEY_THREE))
         menu->selected = DIFF_HARD;
 
-    // Clicking a circle selects that difficulty directly.
     if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON))
     {
         Vector2 mouse = GetMousePosition();
@@ -69,22 +62,35 @@ void MenuDraw(const MenuState *menu)
     ClearBackground(BLACK);
     if (menu->background.id)
     {
-        // Stretched to fill the window exactly, so the circle coordinates
-        // in config.h line up regardless of the source image's own resolution.
         DrawTexturePro(menu->background,
                        (Rectangle){0, 0, (float)menu->background.width, (float)menu->background.height},
                        (Rectangle){0, 0, (float)SCREEN_WIDTH, (float)SCREEN_HEIGHT},
                        (Vector2){0, 0}, 0, WHITE);
     }
 
-    // The artwork itself doesn't show selection state, so a highlight
-    // ring is drawn on top of whichever circle is currently selected.
-    Vector2 c = CircleCenter(menu->selected);
-    DrawCircleLines((int)c.x, (int)c.y, MENU_CIRCLE_RADIUS + 6, GOLD);
-    DrawCircleLines((int)c.x, (int)c.y, MENU_CIRCLE_RADIUS + 8, GOLD);
-    DrawCircleLines((int)c.x, (int)c.y, MENU_CIRCLE_RADIUS + 10, (Color){255, 215, 0, 150});
+    DrawRectangle(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, (Color){4, 24, 36, 75});
 
-    const char *hint = "Click a circle or use ARROWS / 1-2-3, then ENTER to start";
-    DrawText(hint, SCREEN_WIDTH / 2 - MeasureText(hint, 18) / 2,
-             SCREEN_HEIGHT - 40, 18, (Color){50, 50, 50, 255});
+    DrawCenteredText(MENU_TITLE_TEXT, 85, 54, RAYWHITE);
+    DrawCenteredText(MENU_SUBTITLE_TEXT, 150, 24, (Color){222, 239, 230, 255});
+
+    for (int i = 0; i < DIFF_COUNT; i++)
+    {
+        Difficulty option = (Difficulty)i;
+        Vector2 c = CircleCenter(option);
+        bool selected = option == menu->selected;
+        Color fill = selected ? (Color){250, 244, 220, 245} : (Color){10, 45, 62, 220};
+        Color label = selected ? (Color){67, 45, 19, 255} : RAYWHITE;
+
+        DrawCircleV(c, MENU_CIRCLE_RADIUS, fill);
+        DrawCircleLines((int)c.x, (int)c.y, MENU_CIRCLE_RADIUS, selected ? GOLD : RAYWHITE);
+        if (selected)
+            DrawCircleLines((int)c.x, (int)c.y, MENU_CIRCLE_RADIUS + 7, GOLD);
+
+        const char *name = DifficultyName(option);
+        DrawText(name, (int)c.x - MeasureText(name, 34) / 2,
+                 (int)c.y - 18, 34, label);
+    }
+
+    const char *hint = "Click a choice or use ARROWS / 1-2, then ENTER to start";
+    DrawCenteredText(hint, SCREEN_HEIGHT - 40, 18, RAYWHITE);
 }

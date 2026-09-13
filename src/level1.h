@@ -33,6 +33,7 @@ typedef struct Level1
     float cameraX;
     float timeLeft;
     int coinsCollected;
+    bool isFallingInPit;
     Level1State state;
     float countdownTimer;
     Coin coins[LEVEL1_COIN_COUNT];
@@ -41,6 +42,8 @@ typedef struct Level1
     Pit pits[LEVEL1_PIT_COUNT];
     Texture2D coinTexture;
     Texture2D bgFar;
+    Texture2D groundTexture;
+    Texture2D pitTexture;
 
     Difficulty difficulty;
     float runTime;             // seconds elapsed when the run was won
@@ -50,9 +53,7 @@ typedef struct Level1
     LeaderboardEntry board[LEADERBOARD_SIZE];
     int boardCount;
 
-    Texture2D obsStaticTallTexture;
     Texture2D obsStaticLowTexture;
-    Texture2D obsMovingTallTexture;
     Texture2D obsMovingLowTexture;
     Texture2D debrisTexture;
 
@@ -65,6 +66,6 @@ Level1 Level1Create(Difficulty difficulty);
 void Level1Unload(Level1 *lvl);
 void Level1Update(Level1 *lvl, float deltaTime);
 void Level1Draw(const Level1 *lvl);
-void Level1AdvanceFromWin(Level1 *lvl); // moves L1_WIN -> name entry or leaderboard
+void Level1AdvanceFromWin(Level1 *lvl);
 
 #endif

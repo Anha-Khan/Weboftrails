@@ -11,8 +11,6 @@ FallingDebris DebrisCreate(float x, float initialTimerOffset, Texture2D texture)
     d.height = DEBRIS_HEIGHT;
     d.state = DEBRIS_WARNING;
     d.texture = texture;
-    // Stagger start so multiple debris along the level don't all drop
-    // in lockstep - each one is offset within its own warning window.
     d.timer = initialTimerOffset;
     return d;
 }
@@ -71,7 +69,6 @@ void DebrisDraw(const FallingDebris *d, float camX)
 
     if (d->state == DEBRIS_WARNING)
     {
-        // Pulsing ground marker + "!" only - no rectangle outline.
         float ratio = d->timer / DEBRIS_WARNING_DURATION;
         float pulse = 0.5f + 0.5f * fabsf(sinf(ratio * 18.0f));
         unsigned char alpha = (unsigned char)(90 + pulse * 140);
@@ -95,7 +92,7 @@ void DebrisDraw(const FallingDebris *d, float camX)
                 (Rectangle){sx, d->y, (float)d->width, (float)d->height}, 2, (Color){70, 50, 40, 255});
         }
     }
-    else // DEBRIS_LANDED
+    else
     {
         float shrink = d->timer / DEBRIS_LANDED_DURATION;
         int h = (int)(d->height * (1.0f - 0.5f * shrink));
